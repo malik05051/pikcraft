@@ -1,0 +1,67 @@
+name: Pikmin 1 patcher
+
+on:
+  push:
+    branches: ["**"]
+    paths: ["pikmin1/**", ".github/workflows/patcher.yml"]
+  pull_request:
+    paths: ["pikmin1/**", ".github/workflows/patcher.yml"]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Publish a GitHub release with this tag (e.g. patcher-v0.1.0); leave empty to only build"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            name: pikcraft-patcher-linux-x86_64
+          - os: windows-latest
+            name: pikcraft-patcher-windows-x86_64.exe
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: pikmin1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Unit tests
+        run: python -m unittest discover -s tests -t .
+      - name: Build single-file executable
+        run: |
+          pip install pyinstaller==6.11.1
+          pyinstaller --onefile --console --name ${{ matrix.name }} pikcraft-patcher.py
+      - name: Smoke test
+        run: ./dist/${{ matrix.name }} --version
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: pikmin1/dist/${{ matrix.name }}
+
+  release:
+    if: github.event_name == 'workflow_dispatch' && inputs.release_tag != ''
+    needs: build
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.release_tag }}
+          name: PikCraft for Pikmin 1 (patcher ${{ inputs.release_tag }})
+          target_commitish: ${{ github.sha }}
+          files: dist/*
+          body: |
+            Turns your own Pikmin (GameCube) disc image into PikCraft: Minecraft-style block worlds inside the real game, played in Dolphin.
+            No game files are included. See pikmin1/README.md.
