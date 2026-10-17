@@ -17,7 +17,7 @@ import time
 from . import gcdisc, mapbuild
 from . import modfile as mf
 
-__version__ = "0.1.0"
+__version__ = "1.0.0"
 
 SUPPORTED = {"GPIE01", "GPIJ01", "GPIP01"}
 DEFAULT_BLOCK = 20.0  # map units per block (a Pikmin is roughly 10 units tall)

@@ -9,9 +9,14 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: "Publish a GitHub release with this tag (e.g. patcher-v0.1.0); leave empty to only build"
+        description: "Publish a GitHub release with this tag (e.g. v1.0.0); leave empty to only build"
         required: false
         default: ""
+      delete_other_releases:
+        description: "Delete every other release (and its tag) before publishing"
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: write
@@ -52,6 +57,19 @@ jobs:
     needs: build
     runs-on: ubuntu-22.04
     steps:
+      - name: Delete other releases
+        if: inputs.delete_other_releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          KEEP: ${{ inputs.release_tag }}
+        run: |
+          gh release list --limit 200 --json tagName --jq '.[].tagName' | while read -r tag; do
+            echo "Deleting release $tag"
+            gh release delete "$tag" --yes --cleanup-tag
+          done
+          # A stale tag with the new release's name would pin it to an old commit.
+          gh api -X DELETE "repos/$GH_REPO/git/refs/tags/$KEEP" 2>/dev/null || true
       - uses: actions/download-artifact@v4
         with:
           path: dist
@@ -59,9 +77,22 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ inputs.release_tag }}
-          name: PikCraft for Pikmin 1 (patcher ${{ inputs.release_tag }})
+          name: PikCraft ${{ inputs.release_tag }}
           target_commitish: ${{ github.sha }}
           files: dist/*
+          make_latest: true
           body: |
-            Turns your own Pikmin (GameCube) disc image into PikCraft: Minecraft-style block worlds inside the real game, played in Dolphin.
-            No game files are included. See pikmin1/README.md.
+            **PikCraft: Minecraft-style block worlds inside the real Pikmin 1 (GameCube), played in [Dolphin](https://dolphin-emu.org).**
+
+            The patcher turns your own Pikmin disc image into PikCraft: every area's terrain is rebuilt as grass, dirt, stone, sand, planks, mud and water blocks. Collision, enemies, ship parts and carrying routes are unchanged, so the game plays as normal.
+
+            ### How to use
+            1. Download the patcher for your system below.
+            2. Run it with your disc image and an output name, or run it with no arguments and it asks for both:
+               - Windows: `pikcraft-patcher-windows-x86_64.exe "Pikmin.iso" "PikCraft.iso"`
+               - Linux: `chmod +x pikcraft-patcher-linux-x86_64 && ./pikcraft-patcher-linux-x86_64 "Pikmin.iso" "PikCraft.iso"`
+            3. Open `PikCraft.iso` in Dolphin.
+
+            Supported: NTSC-U (GPIE01), NTSC-J (GPIJ01) and PAL (GPIP01). Use a plain `.iso`/`.gcm`; to convert an `.rvz`, right-click it in Dolphin, choose **Convert File…** and pick **ISO**. Your original image is never modified.
+
+            No Nintendo or Mojang files are included: the patcher only rewrites the disc you supply, and the block textures are original pixel art.
