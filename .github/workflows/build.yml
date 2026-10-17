@@ -6,6 +6,11 @@ on:
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Publish a GitHub release with this tag (e.g. v1.0.0); leave empty to only build"
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -95,7 +100,7 @@ jobs:
 
   release:
     name: Publish GitHub release
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.release_tag != ''
     needs: [linux, windows]
     runs-on: ubuntu-latest
     steps:
@@ -107,7 +112,9 @@ jobs:
 
       - uses: softprops/action-gh-release@v2
         with:
-          name: PikCraft ${{ github.ref_name }}
+          name: PikCraft ${{ inputs.release_tag || github.ref_name }}
+          tag_name: ${{ inputs.release_tag || github.ref_name }}
+          target_commitish: ${{ github.sha }}
           files: |
             dist/pikcraft-windows-x86_64.zip
             dist/pikcraft-linux-x86_64.tar.gz
