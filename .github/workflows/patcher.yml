@@ -44,9 +44,10 @@ jobs:
       - name: Build single-file executable
         run: |
           pip install pyinstaller==6.11.1
-          pyinstaller --onefile --console --name ${{ matrix.name }} pikcraft-patcher.py
-      - name: Smoke test
-        run: ./dist/${{ matrix.name }} --version
+          pyinstaller --onefile --console --name ${{ matrix.name }} --add-data "pikcraft_patcher/data:pikcraft_patcher/data" pikcraft-patcher.py
+      - name: Smoke test (the block-breaking code patch is bundled)
+        shell: bash
+        run: ./dist/${{ matrix.name }} --version | tee version.txt && grep -q GPIP01_00 version.txt
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.name }}
@@ -84,7 +85,10 @@ jobs:
           body: |
             **PikCraft: Minecraft-style block worlds inside the real Pikmin 1 (GameCube), played in [Dolphin](https://dolphin-emu.org).**
 
-            The patcher turns your own Pikmin disc image into PikCraft: every area's terrain is rebuilt as grass, dirt, stone, sand, planks, mud and water blocks. Collision, enemies, ship parts and carrying routes are unchanged, so the game plays as normal.
+            The patcher turns your own Pikmin disc image into PikCraft: every area's terrain is rebuilt as grass, dirt, stone, sand, planks, mud and water blocks. Enemies, ship parts and carrying routes are unchanged, so the game plays as normal.
+
+            **Break and place blocks** (PAL disc, GPIP01): aim the cursor and press **D-pad ◀** to break the block under it, **D-pad ▶** to place one. Olimar and the Pikmin walk into the holes you dig and onto what you build. The terrain resets each day.
+            Other versions get the block terrain without breaking.
 
             ### How to use
             1. Download the patcher for your system below.

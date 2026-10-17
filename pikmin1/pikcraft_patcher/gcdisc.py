@@ -131,12 +131,21 @@ class GameCubeDisc:
         return h.hexdigest()
 
 
-def write_patched(src_path: str, dst_path: str, replacements: dict[str, bytes], game_id: str | None = None) -> None:
-    """Copy `src_path` to `dst_path`, replacing the given disc files (paths as on the disc)."""
+def write_patched(
+    src_path: str,
+    dst_path: str,
+    replacements: dict[str, bytes],
+    game_id: str | None = None,
+    dol: bytes | None = None,
+) -> None:
+    """Copy `src_path` to `dst_path`, replacing the given disc files (paths as on the disc) and,
+    optionally, the main executable."""
     with GameCubeDisc(src_path) as disc:
         entries = [(disc.find(p), data) for p, data in replacements.items()]
         fst_offset = disc.fst_offset
         fst = bytearray(disc.fst)
+        dol_offset = disc.dol_offset
+        old_dol_size = len(disc.read_dol())
     if os.path.abspath(src_path) == os.path.abspath(dst_path):
         raise DiscError("refusing to overwrite the original disc image")
     shutil.copyfile(src_path, dst_path)
@@ -156,6 +165,17 @@ def write_patched(src_path: str, dst_path: str, replacements: dict[str, bytes], 
                 new_offset = end
                 end += len(data)
             struct.pack_into(">II", fst, entry.entry_index * 12 + 4, new_offset, len(data))
+        if dol is not None:
+            if len(dol) <= old_dol_size:
+                out.seek(dol_offset)
+                out.write(dol)
+            else:
+                end = (end + APPEND_ALIGN - 1) // APPEND_ALIGN * APPEND_ALIGN
+                out.seek(end)
+                out.write(dol)
+                out.seek(DOL_OFFSET_FIELD)
+                out.write(struct.pack(">I", end))
+                end += len(dol)
         # Pad the image to a whole sector so emulators see a tidy size.
         out.seek(0, os.SEEK_END)
         size = out.tell()

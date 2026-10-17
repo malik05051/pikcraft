@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from pikcraft_patcher import gcdisc, modfile  # noqa: E402
 
 
-def make_disc(files: dict[str, bytes]) -> bytes:
+def make_disc(files: dict[str, bytes], dol: bytes = b"") -> bytes:
     """Build a minimal GameCube image: header, an FST and the given files (paths with '/')."""
     # Build a directory tree.
     tree: dict = {}
@@ -48,7 +48,11 @@ def make_disc(files: dict[str, bytes]) -> bytes:
     fst_size = len(entries) * 12 + len(names)
     data_start = (fst_offset + fst_size + 0x7FFF) // 0x8000 * 0x8000
     image = bytearray(data_start)
-    pos = data_start
+    dol_offset = 0
+    if dol:
+        dol_offset = data_start
+        image += dol + b"\0" * (-len(dol) % 0x8000)
+    pos = len(image)
     for idx, blob in blobs:
         entries[idx][2] = pos
         image += blob + b"\0" * ((32 - len(blob) % 32) % 32)
@@ -61,7 +65,7 @@ def make_disc(files: dict[str, bytes]) -> bytes:
     image[0:6] = b"GPIE01"
     image[7] = 1
     struct.pack_into(">I", image, 0x1C, gcdisc.GC_MAGIC)
-    struct.pack_into(">III", image, 0x420, 0, fst_offset, fst_size)
+    struct.pack_into(">III", image, 0x420, dol_offset, fst_offset, fst_size)
     return bytes(image)
 
 

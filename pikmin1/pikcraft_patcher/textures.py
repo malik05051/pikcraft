@@ -129,3 +129,18 @@ def make_teximg(name: str, size: int = 32) -> TexImg:
     """A block texture as a .mod texture entry. 32x32 keeps pixels crisp even with filtering."""
     fmt = FMT_RGB5A3 if name in TRANSLUCENT else FMT_RGB565
     return TexImg(size, size, fmt, 1, (0, 0, 0, 0), encode(pixels(name, size), size, size, fmt))
+
+
+ATLAS_SIZE = 64  # 4x4 tiles of 16x16, in BLOCK_TEXTURES order
+
+
+def atlas() -> bytes:
+    """All block textures in one 64x64 RGB5A3 image (tile n at column n % 4, row n // 4)."""
+    px = [(0, 0, 0, 0)] * (ATLAS_SIZE * ATLAS_SIZE)
+    for n, name in enumerate(BLOCK_TEXTURES):
+        tile = pixels(name, TILE)
+        ox, oy = (n % 4) * TILE, (n // 4) * TILE
+        for y in range(TILE):
+            for x in range(TILE):
+                px[(oy + y) * ATLAS_SIZE + ox + x] = tile[y * TILE + x]
+    return encode(px, ATLAS_SIZE, ATLAS_SIZE, FMT_RGB5A3)

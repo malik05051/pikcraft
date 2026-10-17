@@ -8,6 +8,7 @@ texture swapped, so the game's renderer sees nothing it hasn't drawn before.
 
 from __future__ import annotations
 
+import struct
 from collections import Counter
 from dataclasses import dataclass
 
@@ -93,6 +94,11 @@ def pick_template(meshes, joints, mats: mf.MaterialChunk, blend: int = mf.MATFLA
     return None
 
 
+def ground_tris(prism: mf.CollPrism) -> list[tuple]:
+    """Collision triangles that can be stood on (overhangs and ceilings would become pillars)."""
+    return [(t.verts[0], t.verts[1], t.verts[2], t.attribute, t.map_code) for t in prism.tris if t.plane[1] > 0.05]
+
+
 def _tri_corners(prims):
     """Triangles of decoded primitives, in drawn order (strip triangles alternate winding)."""
     for op, vs in prims:
@@ -146,7 +152,7 @@ def build(data: bytes, block_size: float, keep_original: bool = False) -> tuple[
     ccw = front_is_ccw(meshes, verts, normals)
 
     # ---- terrain blocks from the collision surface
-    tri_list = [(t.verts[0], t.verts[1], t.verts[2], t.attribute) for t in prism.tris]
+    tri_list = ground_tris(prism)
     size = block_size
     while True:
         grid = voxel.sample(verts, tri_list, size)
@@ -266,5 +272,85 @@ def build(data: bytes, block_size: float, keep_original: bool = False) -> tuple[
         len(verts),
         {name: t.material_index for name, t in templates.items()},
         hidden,
+    )
+    return mod.to_bytes(), report
+
+
+# ----------------------------------------------------------------------------- block chunk
+
+CHUNK_BLOCKS = 0x5043  # read by the PikCraft game code (include/PikCraft.h)
+CHUNK_MAGIC = 0x50434231  # 'PCB1'
+NO_GROUND = -32768
+
+
+def _align(buf: bytearray, n: int = 32) -> int:
+    buf += b"\0" * (-len(buf) % n)
+    return len(buf)
+
+
+def block_chunk(grid: voxel.Grid) -> bytes:
+    """The block heightmap the game code draws, collides with and edits."""
+    n = grid.nx * grid.nz
+    ground = [c.ground if c.ground is not None else NO_GROUND for c in grid.columns]
+    water = [c.water if c.water is not None and c.ground is not None else NO_GROUND for c in grid.columns]
+    surface = [c.surface if c.ground is not None else voxel.AIR for c in grid.columns]
+    codes = [((c.code >> 29) & 7) | (((c.code >> 27) & 3) << 3) | (((c.code >> 25) & 1) << 5) for c in grid.columns]
+    top = max(max(g for g in ground if g != NO_GROUND), max((w for w in water if w != NO_GROUND), default=-32768))
+
+    body = bytearray(64)
+    offsets = []
+    for fmt, values in ((">%dh" % n, ground), (">%dh" % n, water), ("%dB" % n, surface), ("%dB" % n, codes)):
+        offsets.append(_align(body))
+        body += struct.pack(fmt, *values)
+    offsets.append(_align(body))
+    atlas = textures.atlas()
+    body += atlas
+    body += b"\0" * (-(len(body) + 8) % 32)  # the next chunk (after this one's 8-byte header) starts aligned
+    struct.pack_into(
+        ">II4f4i6I",
+        body,
+        0,
+        CHUNK_MAGIC,
+        1,
+        grid.origin_x,
+        grid.origin_y,
+        grid.origin_z,
+        grid.size,
+        grid.nx,
+        grid.nz,
+        grid.floor,
+        top,
+        *offsets,
+        len(atlas),
+    )
+    return bytes(body)
+
+
+def build_blocks(data: bytes, block_size: float) -> tuple[bytes, BuildReport]:
+    """Map model for the PikCraft game code: the original terrain is hidden and the block heightmap is
+    added; the game draws it and answers collision from it."""
+    mod = mf.ModFile.parse(data)
+    prism = mod.get(mf.CHUNK_COLLPRISM)
+    joints_chunk = mod.get(mf.CHUNK_JOINT)
+    if prism is None or joints_chunk is None:
+        raise BuildError("map has no collision or joints")
+    verts = mf.decode_vec3s(mod.get(mf.CHUNK_VERTEX).payload)
+    tris = ground_tris(mf.decode_collprism(prism.payload))
+    grid = voxel.sample(verts, tris, block_size)
+
+    joints = mf.decode_joints(joints_chunk.payload)
+    hidden = 0
+    for j in joints:
+        hidden += len(j.matpolys)
+        j.matpolys = []
+    mod.set(mf.CHUNK_JOINT, mf.encode_joints(joints))
+    # The terrain textures are never drawn now: keep tiny stand-ins (materials still refer to them)
+    # so the blocks have plenty of memory.
+    texs = mf.decode_textures(mod.get(mf.CHUNK_TEXTURE).payload)
+    stand_in = mf.TexImg(8, 8, textures.FMT_RGB565, 1, (0, 0, 0, 0), b"\x84\x10" * 64)
+    mod.set(mf.CHUNK_TEXTURE, mf.encode_textures([stand_in for _ in texs]))
+    mod.set(CHUNK_BLOCKS, block_chunk(grid))
+    report = BuildReport(
+        block_size, sum(1 for c in grid.columns if c.ground is not None), 0, len(verts), len(verts), {}, hidden
     )
     return mod.to_bytes(), report

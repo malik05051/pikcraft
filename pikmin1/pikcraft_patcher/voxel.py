@@ -44,6 +44,7 @@ class Column:
     ground: int | None  # top solid block layer (inclusive), None = no ground here
     water: int | None  # top water layer (inclusive) above the ground, if any
     surface: int  # block type of the top ground layer
+    code: int = 0  # map code of the collision surface here (attribute << 29 | flags)
 
 
 @dataclass
@@ -74,19 +75,23 @@ class TriIndex:
         self.tris = tris
         self.cell = cell
         self.buckets: dict[tuple[int, int], list[int]] = {}
-        for ti, (a, b, c, _attr) in enumerate(tris):
+        for ti, tri in enumerate(tris):
+            a, b, c = tri[:3]
             xs = (verts[a][0], verts[b][0], verts[c][0])
             zs = (verts[a][2], verts[b][2], verts[c][2])
             for bx in range(int(math.floor(min(xs) / cell)), int(math.floor(max(xs) / cell)) + 1):
                 for bz in range(int(math.floor(min(zs) / cell)), int(math.floor(max(zs) / cell)) + 1):
                     self.buckets.setdefault((bx, bz), []).append(ti)
 
-    def hits(self, x: float, z: float) -> list[tuple[float, int]]:
-        """(height, attribute) of every triangle above or below (x, z), highest first."""
+    def hits(self, x: float, z: float) -> list[tuple[float, int, int]]:
+        """(height, attribute, map code) of every triangle above or below (x, z), highest first.
+
+        Triangles are (v0, v1, v2, attribute) or (v0, v1, v2, attribute, map code)."""
         out = []
         verts = self.verts
         for ti in self.buckets.get((int(math.floor(x / self.cell)), int(math.floor(z / self.cell))), ()):
-            a, b, c, attr = self.tris[ti]
+            a, b, c, attr = self.tris[ti][:4]
+            code = self.tris[ti][4] if len(self.tris[ti]) > 4 else attr << 29
             (x1, y1, z1), (x2, y2, z2), (x3, y3, z3) = verts[a], verts[b], verts[c]
             det = (z2 - z3) * (x1 - x3) + (x3 - x2) * (z1 - z3)
             if abs(det) < 1e-9:
@@ -96,7 +101,7 @@ class TriIndex:
             l3 = 1.0 - l1 - l2
             if l1 < -1e-6 or l2 < -1e-6 or l3 < -1e-6:
                 continue
-            out.append((l1 * y1 + l2 * y2 + l3 * y3, attr))
+            out.append((l1 * y1 + l2 * y2 + l3 * y3, attr, code))
         out.sort(reverse=True)
         return out
 
@@ -133,12 +138,13 @@ def sample(verts, tris, block: float, margin: int = 1) -> Grid:
             if not hits:
                 columns.append(Column(None, None, AIR))
                 continue
-            ground = next(((h, a) for h, a in hits if a != ATTR_WATER), None)
-            water = next((h for h, a in hits if a == ATTR_WATER), None)
+            ground = next(((h, a, c) for h, a, c in hits if a != ATTR_WATER), None)
+            water_hit = next(((h, a, c) for h, a, c in hits if a == ATTR_WATER), None)
+            water = water_hit[0] if water_hit else None
             w = None
             if ground is None or (water is not None and abs(water - ground[0]) <= block * 0.25):
                 # Pikmin marks the pond bed itself as water; the visible surface is not collision.
-                ground = (water, ATTR_WATER)
+                ground = water_hit
                 wet.add((i, k))
             elif water is not None and water > ground[0] + block * 0.25:
                 w = int(round((water - oy) / block)) - 1
@@ -146,7 +152,7 @@ def sample(verts, tris, block: float, margin: int = 1) -> Grid:
             if w is not None and w <= g:
                 w = None
             surface = SAND if w is not None or (i, k) in wet else surface_block(ground[1])
-            columns.append(Column(g, w, surface))
+            columns.append(Column(g, w, surface, ground[2]))
             lowest = g if lowest is None else min(lowest, g)
     grid = Grid(ox, oz, oy, block, nx, nz, columns, (lowest or 0) - 2)
     _fill_ponds(grid, wet)
