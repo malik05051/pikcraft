@@ -1253,7 +1253,7 @@ pub fn help_lines(layout: Layout) -> Vec<String> {
         "F throw   R whistle (hold)   E pluck sprouts   X dismiss squad".into(),
         "Tab change thrown colour   C crafting   F1 help   F3 info   Esc pause".into(),
         format!(
-            "Keyboard: {} (L to switch)   M music   B sounds",
+            "Keyboard: {} (L to switch)   M music   B sounds   U update",
             layout.name()
         ),
         String::new(),
