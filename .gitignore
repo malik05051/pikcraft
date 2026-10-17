@@ -2,3 +2,11 @@
 *.png
 
 /dist
+__pycache__/
+*.pyc
+pikmin1/dist/
+pikmin1/build/
+*.spec
+*.iso
+*.gcm
+*.rvz
