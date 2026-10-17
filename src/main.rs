@@ -1,7 +1,9 @@
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 //! PikCraft: a voxel sandbox where a squad of plant creatures digs, fights and carries for you.
 
+mod audio;
 mod block;
+mod controls;
 mod draw;
 mod entities;
 mod game;
@@ -10,6 +12,8 @@ mod physics;
 mod render;
 mod world;
 
+use audio::{AudioPlayer, Sfx};
+use controls::{Layout, Settings, digit_pressed, typed_chars};
 use draw::*;
 use entities::*;
 use game::*;
@@ -108,9 +112,31 @@ fn parse_args() -> Options {
                     "PikCraft {}\n\nUsage: pikcraft [--seed N]\n",
                     env!("CARGO_PKG_VERSION")
                 );
-                for l in HELP {
+                for l in help_lines(Layout::detect()) {
                     let _ = writeln!(out, "{l}");
                 }
+                std::process::exit(0);
+            }
+            "--export-audio" if i + 1 < args.len() => {
+                // Developer helper: write every synthesised sound to WAV files and exit.
+                let dir = std::path::PathBuf::from(&args[i + 1]);
+                let _ = std::fs::create_dir_all(&dir);
+                for s in audio::ALL_SFX {
+                    let wav = audio::wav_bytes(&audio::render_sfx(s, 1.0, 17));
+                    let _ = std::fs::write(dir.join(format!("{s:?}.wav").to_lowercase()), wav);
+                }
+                let _ = std::fs::write(
+                    dir.join("whistle.wav"),
+                    audio::wav_bytes(&audio::render_whistle()),
+                );
+                let _ = std::fs::write(
+                    dir.join("music_day.wav"),
+                    audio::wav_bytes(&audio::render_music(false)),
+                );
+                let _ = std::fs::write(
+                    dir.join("music_night.wav"),
+                    audio::wav_bytes(&audio::render_music(true)),
+                );
                 std::process::exit(0);
             }
             "--version" | "-V" => {
@@ -132,13 +158,13 @@ fn random_seed() -> u32 {
     (t as u64 ^ (t >> 64) as u64) as u32 % 1_000_000
 }
 
-fn read_input(grabbed: bool, skip_look: bool) -> Input {
+fn read_input(grabbed: bool, skip_look: bool, layout: Layout, chars: &[char]) -> Input {
     let mut i = Input::default();
-    let key = |k| is_key_down(k);
-    i.forward = key(KeyCode::W) as i32 as f32 - key(KeyCode::S) as i32 as f32;
-    i.strafe = key(KeyCode::D) as i32 as f32 - key(KeyCode::A) as i32 as f32;
-    i.jump = key(KeyCode::Space);
-    i.sprint = key(KeyCode::LeftShift) || key(KeyCode::LeftControl);
+    let key = |k| layout.down(k);
+    i.forward = key(layout.forward()) as i32 as f32 - key(KeyCode::S) as i32 as f32;
+    i.strafe = key(KeyCode::D) as i32 as f32 - key(layout.left()) as i32 as f32;
+    i.jump = is_key_down(KeyCode::Space);
+    i.sprint = is_key_down(KeyCode::LeftShift) || is_key_down(KeyCode::LeftControl);
     if !grabbed {
         return i;
     }
@@ -150,27 +176,12 @@ fn read_input(grabbed: bool, skip_look: bool) -> Input {
     i.primary_pressed = is_mouse_button_pressed(MouseButton::Left);
     i.secondary = is_mouse_button_down(MouseButton::Right);
     i.secondary_pressed = is_mouse_button_pressed(MouseButton::Right);
-    i.throw = is_key_pressed(KeyCode::F) || is_mouse_button_pressed(MouseButton::Middle);
+    i.throw = layout.pressed(KeyCode::F) || is_mouse_button_pressed(MouseButton::Middle);
     i.whistle = key(KeyCode::R);
     i.pluck = key(KeyCode::E);
-    i.dismiss = is_key_pressed(KeyCode::X);
+    i.dismiss = layout.pressed(KeyCode::X);
     i.cycle_color = is_key_pressed(KeyCode::Tab);
-    let slots = [
-        KeyCode::Key1,
-        KeyCode::Key2,
-        KeyCode::Key3,
-        KeyCode::Key4,
-        KeyCode::Key5,
-        KeyCode::Key6,
-        KeyCode::Key7,
-        KeyCode::Key8,
-        KeyCode::Key9,
-    ];
-    for (n, k) in slots.iter().enumerate() {
-        if is_key_pressed(*k) {
-            i.slot = Some(n);
-        }
-    }
+    i.slot = digit_pressed(chars);
     i.scroll = mouse_wheel().1;
     i
 }
@@ -190,7 +201,7 @@ fn reset_mouse() {
     LAST_MOUSE.with(|m| m.set(Some(now)));
 }
 
-fn draw_title(seed: u32, t: f32) {
+fn draw_title(seed: u32, t: f32, settings: &Settings) {
     let (w, h) = (screen_width(), screen_height());
     clear_background(Color::new(0.45, 0.68, 0.95, 1.0));
     // Rolling blocky hills.
@@ -291,12 +302,50 @@ fn draw_title(seed: u32, t: f32) {
         WHITE,
     );
     text_center(
-        "F1 in game for controls",
+        &format!(
+            "Keyboard: {} (move {})   [L] switch layout",
+            settings.layout.name(),
+            settings.layout.move_keys()
+        ),
         w / 2.0,
-        h * 0.55 + 70.0,
+        h * 0.55 + 72.0,
+        22.0,
+        Color::new(1.0, 1.0, 0.75, 1.0),
+    );
+    let onoff = |b: bool| if b { "on" } else { "off" };
+    text_center(
+        &format!(
+            "[M] music {}   [B] sounds {}   F1 in game for controls",
+            onoff(settings.music),
+            onoff(settings.sounds)
+        ),
+        w / 2.0,
+        h * 0.55 + 100.0,
         20.0,
         Color::new(1.0, 1.0, 1.0, 0.8),
     );
+}
+
+/// Layout / music / sound toggles shared by the title screen, the pause menu and the game.
+fn handle_setting_keys(settings: &mut Settings, audio: &mut AudioPlayer) {
+    let layout = settings.layout;
+    let mut changed = false;
+    if is_key_pressed(KeyCode::L) {
+        settings.layout = layout.toggled();
+        changed = true;
+    }
+    if layout.pressed(KeyCode::M) {
+        settings.music = !settings.music;
+        changed = true;
+    }
+    if layout.pressed(KeyCode::B) {
+        settings.sounds = !settings.sounds;
+        changed = true;
+    }
+    if changed {
+        settings.save();
+        audio.play(Sfx::Click, 1.0, settings);
+    }
 }
 
 async fn loading_frame(msg: &str) {
@@ -318,15 +367,21 @@ fn main() {
 
 async fn run(opts: Options) {
     let mut seed = opts.seed.unwrap_or_else(random_seed);
+    let mut settings = Settings::load();
+    loading_frame("Tuning the sprouts' voices...").await;
+    let mut audio = AudioPlayer::load().await;
 
     // Title screen.
     if opts.selftest.is_none() {
         let start = get_time();
         loop {
             let t = (get_time() - start) as f32;
-            draw_title(seed, t);
-            if is_key_pressed(KeyCode::N) {
+            audio.update_music(false, get_frame_time(), &settings);
+            draw_title(seed, t, &settings);
+            handle_setting_keys(&mut settings, &mut audio);
+            if settings.layout.pressed(KeyCode::N) {
                 seed = random_seed();
+                audio.play(Sfx::Click, 1.0, &settings);
             }
             if is_key_pressed(KeyCode::Enter)
                 || is_key_pressed(KeyCode::Space)
@@ -385,6 +440,7 @@ async fn run(opts: Options) {
     let mut crafting = false;
     let mut help = selftest.is_none();
     let mut help_auto_close = 25.0f32;
+    let mut debug_overlay = false;
     let mut grabbed = false;
     let mut skip_look = true;
 
@@ -397,6 +453,8 @@ async fn run(opts: Options) {
             get_frame_time().min(0.05)
         };
         let time = get_time() as f32;
+        let chars = typed_chars();
+        let layout = settings.layout;
 
         // ---------------------------------------------------------------- UI state
         let want_grab = !paused && !crafting && selftest.is_none();
@@ -414,6 +472,9 @@ async fn run(opts: Options) {
                 paused = !paused;
             }
         }
+        if is_key_pressed(KeyCode::F3) {
+            debug_overlay = !debug_overlay;
+        }
         if is_key_pressed(KeyCode::F1) {
             help = !help;
             help_auto_close = 0.0;
@@ -424,33 +485,23 @@ async fn run(opts: Options) {
                 help = false;
             }
         }
-        if is_key_pressed(KeyCode::C) && !paused {
+        if layout.pressed(KeyCode::C) && !paused {
             crafting = !crafting;
             help = false;
+            audio.play(Sfx::Click, 1.0, &settings);
         }
         if crafting {
-            for (n, k) in [
-                KeyCode::Key1,
-                KeyCode::Key2,
-                KeyCode::Key3,
-                KeyCode::Key4,
-                KeyCode::Key5,
-                KeyCode::Key6,
-                KeyCode::Key7,
-                KeyCode::Key8,
-            ]
-            .iter()
-            .enumerate()
-            {
-                if is_key_pressed(*k) {
-                    game.craft(n);
-                }
+            if let Some(n) = digit_pressed(&chars).filter(|n| *n < RECIPES.len()) {
+                game.craft(n);
             }
+        }
+        if selftest.is_none() {
+            handle_setting_keys(&mut settings, &mut audio);
         }
 
         // ---------------------------------------------------------------- simulate
         let mut input = if grabbed {
-            read_input(true, skip_look)
+            read_input(true, skip_look, layout, &chars)
         } else {
             Input::default()
         };
@@ -472,6 +523,22 @@ async fn run(opts: Options) {
         }
         if help && (input.primary_pressed || input.throw) {
             help = false;
+        }
+
+        // ---------------------------------------------------------------- audio
+        let events = std::mem::take(&mut game.sfx);
+        let ear = game.player.eye();
+        for (sfx, at) in &events {
+            let volume = match at {
+                None => 1.0,
+                Some(p) => (1.0 - p.distance(ear) / 36.0).clamp(0.0, 1.0).powf(1.5),
+            };
+            audio.play(*sfx, volume, &settings);
+        }
+        audio.set_whistle(game.player.whistle > 0.0 && !paused, &settings);
+        audio.update_music(game.is_night(), dt, &settings);
+        if let Some(st) = selftest.as_mut() {
+            st.heard(&events);
         }
 
         // ---------------------------------------------------------------- render
@@ -567,7 +634,37 @@ async fn run(opts: Options) {
             }
         }
         if help {
-            draw_help();
+            draw_help(layout);
+        }
+        if debug_overlay {
+            let p = game.player.body.pos;
+            let lines = [
+                format!("PikCraft {}   {} fps", env!("CARGO_PKG_VERSION"), get_fps()),
+                format!(
+                    "XYZ {:.1} {:.1} {:.1}   facing {:.0} deg",
+                    p.x,
+                    p.y,
+                    p.z,
+                    game.player.yaw.to_degrees().rem_euclid(360.0)
+                ),
+                format!(
+                    "Keyboard {} (move {})   music {}   sounds {}",
+                    layout.name(),
+                    layout.move_keys(),
+                    if settings.music { "on" } else { "off" },
+                    if settings.sounds { "on" } else { "off" }
+                ),
+                format!(
+                    "Seed {}   sprouts {}   chompers {}",
+                    game.world.seed,
+                    game.sprouts.len(),
+                    game.enemies.len()
+                ),
+            ];
+            draw_rectangle(10.0, 60.0, 520.0, 112.0, Color::new(0.0, 0.0, 0.0, 0.55));
+            for (k, l) in lines.iter().enumerate() {
+                text_shadow(l, 18.0, 84.0 + k as f32 * 24.0, 20.0, WHITE);
+            }
         }
         if let Some(t) = game.won_at {
             if game.elapsed - t < 12.0 {
@@ -612,6 +709,19 @@ async fn run(opts: Options) {
                 26.0,
                 WHITE,
             );
+            let onoff = |b: bool| if b { "on" } else { "off" };
+            text_center(
+                &format!(
+                    "[M] music {}   [B] sounds {}   [L] keyboard {}",
+                    onoff(settings.music),
+                    onoff(settings.sounds),
+                    settings.layout.name()
+                ),
+                w / 2.0,
+                h / 2.0 + 90.0,
+                22.0,
+                Color::new(1.0, 1.0, 0.75, 1.0),
+            );
             text_center(
                 &format!("World seed {}", game.world.seed),
                 w / 2.0,
@@ -619,7 +729,7 @@ async fn run(opts: Options) {
                 20.0,
                 Color::new(1.0, 1.0, 1.0, 0.7),
             );
-            if is_key_pressed(KeyCode::Q) {
+            if layout.pressed(KeyCode::Q) {
                 break;
             }
         }
@@ -647,6 +757,7 @@ struct SelfTest {
     dir: String,
     log: Vec<String>,
     failures: Vec<String>,
+    sounds: std::collections::HashSet<Sfx>,
     base_yaw: f32,
     carried: usize,
 }
@@ -658,9 +769,14 @@ impl SelfTest {
             dir,
             log: Vec::new(),
             failures: Vec::new(),
+            sounds: std::collections::HashSet::new(),
             base_yaw: 0.0,
             carried: 0,
         }
+    }
+
+    fn heard(&mut self, events: &[(Sfx, Option<Vec3>)]) {
+        self.sounds.extend(events.iter().map(|(s, _)| *s));
     }
 
     fn check(&mut self, ok: bool, what: &str) {
@@ -862,6 +978,20 @@ impl SelfTest {
             740 => shot("06_night"),
             750 => {
                 self.check(g.is_night(), "day/night cycle");
+                let needed = [
+                    Sfx::Pluck,
+                    Sfx::Throw,
+                    Sfx::Dig,
+                    Sfx::Break,
+                    Sfx::ChomperDie,
+                    Sfx::Deliver,
+                    Sfx::Night,
+                ];
+                let missing: Vec<_> = needed.iter().filter(|s| !self.sounds.contains(s)).collect();
+                self.check(
+                    missing.is_empty(),
+                    &format!("gameplay sounds fire (missing {missing:?})"),
+                );
                 self.log.push(format!("fps {}", get_fps()));
                 self.log.push(if self.failures.is_empty() {
                     "RESULT: PASS".into()

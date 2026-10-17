@@ -1,6 +1,7 @@
 //! Drawing of creatures, items, effects and the HUD (terrain is drawn by `render`).
 
 use crate::block::{Block, tile};
+use crate::controls::Layout;
 use crate::entities::*;
 use crate::game::*;
 use crate::render::{ATLAS_COLS, TILE};
@@ -1234,36 +1235,47 @@ pub fn draw_crafting(g: &Game, hud: &Hud, hover: Option<usize>) -> Vec<Rect> {
     rects
 }
 
-pub const HELP: &[&str] = &[
-    "PikCraft - a block world with a squad of sprouts",
-    "",
-    "GOAL: find the 5 Star Shards (follow the compass and golden beams)",
-    "and have your sprouts carry them to the Nest (green beam).",
-    "",
-    "WASD move   Space jump/swim   Shift sprint   Mouse look",
-    "1 squad slot   2-9 blocks   Mouse wheel cycles slots",
-    "Squad slot: Left-click throw sprout   Right-click whistle",
-    "Block slots: Left-click mine/attack   Right-click place",
-    "F throw   R whistle (hold)   E pluck sprouts   X dismiss squad",
-    "Tab change thrown colour   C crafting   F1 help   Esc pause",
-    "",
-    "Throw sprouts at blocks to dig, at chompers to attack, at",
-    "items to carry them home. Loot carried home goes to your bag.",
-    "RED resist fire and hit hard.  YELLOW fly high and dig fast.",
-    "BLUE can swim - others drown in deep water.",
-    "Chompers sleep by day and hunt at night. Defeated chompers",
-    "carried to the Nest grow new sprout seeds.",
-];
+/// Help text, with the movement keys of the chosen keyboard layout.
+pub fn help_lines(layout: Layout) -> Vec<String> {
+    vec![
+        "PikCraft - a block world with a squad of sprouts".into(),
+        String::new(),
+        "GOAL: find the 5 Star Shards (follow the compass and golden beams)".into(),
+        "and have your sprouts carry them to the Nest (green beam).".into(),
+        String::new(),
+        format!(
+            "{} move   Space jump/swim   Shift sprint   Mouse look",
+            layout.move_keys()
+        ),
+        "1 squad slot   2-9 blocks   Mouse wheel cycles slots".into(),
+        "Squad slot: Left-click throw sprout   Right-click whistle".into(),
+        "Block slots: Left-click mine/attack   Right-click place".into(),
+        "F throw   R whistle (hold)   E pluck sprouts   X dismiss squad".into(),
+        "Tab change thrown colour   C crafting   F1 help   F3 info   Esc pause".into(),
+        format!(
+            "Keyboard: {} (L to switch)   M music   B sounds",
+            layout.name()
+        ),
+        String::new(),
+        "Throw sprouts at blocks to dig, at chompers to attack, at".into(),
+        "items to carry them home. Loot carried home goes to your bag.".into(),
+        "RED resist fire and hit hard.  YELLOW fly high and dig fast.".into(),
+        "BLUE can swim - others drown in deep water.".into(),
+        "Chompers sleep by day and hunt at night. Defeated chompers".into(),
+        "carried to the Nest grow new sprout seeds.".into(),
+    ]
+}
 
-pub fn draw_help() {
+pub fn draw_help(layout: Layout) {
+    let lines = help_lines(layout);
     let (w, h) = (screen_width(), screen_height());
     let (pw, ph) = (
         720.0f32.min(w - 20.0),
-        (HELP.len() as f32 * 26.0 + 60.0).min(h - 20.0),
+        (lines.len() as f32 * 26.0 + 60.0).min(h - 20.0),
     );
     let (px, py) = ((w - pw) / 2.0, (h - ph) / 2.0);
     draw_panel(px, py, pw, ph);
-    for (i, l) in HELP.iter().enumerate() {
+    for (i, l) in lines.iter().enumerate() {
         let size = if i == 0 { 30.0 } else { 22.0 };
         let col = if i == 0 {
             Color::new(0.6, 1.0, 0.5, 1.0)
