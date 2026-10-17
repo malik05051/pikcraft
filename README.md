@@ -54,7 +54,7 @@ chomper to the Nest, it grows new sprout seeds in the colour of the sprouts that
 
 | Key | Action |
 |-----|--------|
-| WASD / Space / Shift | Move / jump & swim / sprint |
+| WASD (QWERTY) or ZQSD (AZERTY) / Space / Shift | Move / jump & swim / sprint |
 | Mouse | Look |
 | 1 | Squad slot: **left-click** throws a sprout, **right-click** whistles |
 | 2-9, mouse wheel | Block slots: **left-click** mines or attacks, **right-click** places |
@@ -64,19 +64,39 @@ chomper to the Nest, it grows new sprout seeds in the colour of the sprouts that
 | X | Dismiss the squad |
 | Tab | Change which colour you throw |
 | C | Crafting (planks, pickaxes, glass, bricks, glow lamps, sprout seeds) |
-| F1 | Help |
+| F1 / F3 | Help / info overlay (position, FPS, settings) |
+| L | Switch keyboard layout (QWERTY / AZERTY) |
+| M / B | Music on/off / sound effects on/off |
 | Esc | Pause (Q quits from the pause screen) |
+
+### Keyboard layouts
+
+PikCraft supports **QWERTY** and **AZERTY** keyboards. On first launch it guesses from your
+system (a French or Belgian keyboard or locale selects AZERTY). The title screen shows the
+current layout, and you can press **L** there or in game to switch. With AZERTY you move with
+**ZQSD**, and the number row (`& é " ' ( - è _ ç`) selects hotbar slots, so you don't need Shift.
+
+Your choices for layout, music and sounds are saved to
+`%APPDATA%\PikCraft\settings.txt` (Windows) or `~/.config/PikCraft/settings.txt` (Linux).
+
+## Sound
+
+All sound effects and both music tracks are synthesized in code when the game starts, so
+nothing is loaded from audio files. You'll hear a cheerful day tune and a slower night theme
+that crossfade with the sun. Plucking, throwing, digging, the whistle, chompers, deliveries
+and Star Shards each have their own sound, and sounds get quieter the further away they are.
 
 ![Night with a glow lamp](docs/night.jpg)
 
 ## Download & run
 
 Download the latest build from the
-[Releases page](https://github.com/malik05051/minecraft-pikmin-merged/releases).
+[Releases page](https://github.com/malik05051/pikcraft/releases).
 
 * **Windows** (10/11, x64): unzip `pikcraft-windows-x86_64.zip` and run `PikCraft.exe`.
 * **Linux** (x86_64, glibc 2.34+): extract `pikcraft-linux-x86_64.tar.gz` and run `./pikcraft`.
-  You need an OpenGL driver plus `libGL`, `libX11` and `libXi`. Desktop distros ship these.
+  You need an OpenGL driver plus `libGL`, `libX11`, `libXi` and `libasound` (ALSA, which also
+  covers PulseAudio and PipeWire). Desktop distros ship all of these.
 
 Command-line options: `--seed N` plays a specific world, and `--version` prints the version.
 
@@ -88,7 +108,8 @@ Install [Rust](https://rustup.rs), then:
 cargo run --release
 ```
 
-You don't need any system development packages. X11 and OpenGL are loaded at runtime.
+On Linux, building needs the ALSA headers (`sudo apt install libasound2-dev`). X11 and OpenGL
+are loaded at runtime. On Windows nothing extra is needed.
 
 To cross-compile a Windows build from Linux:
 
@@ -101,13 +122,14 @@ cargo build --release --target x86_64-pc-windows-gnu
 ### Tests
 
 ```sh
-cargo test --release                                    # world gen, lighting, path finding, sprout AI, winnability
+cargo test --release                                    # world gen, lighting, path finding, sprout AI, winnability, audio, layouts
 xvfb-run -a ./target/release/pikcraft --selftest out    # scripted play-through, saves screenshots to out/
+./target/release/pikcraft --export-audio sounds         # writes every synthesized sound and both music loops as WAV
 ```
 
 `--selftest` plucks a squad, throws it at blocks, whistles it back, fights a chomper and
-checks each step. It exits with a non-zero code if something fails. CI runs it on both
-Linux and Windows.
+checks each step, including that the matching sounds fire. It exits with a non-zero code if
+something fails. CI runs it on both Linux and Windows.
 
 ## How it's made
 
@@ -121,6 +143,9 @@ with no asset files.
   lighting, and a custom GPU pipeline with fog and day/night.
 * `src/game.rs`: player, sprout AI, chompers, carrying, nest, crafting, day/night cycle.
 * `src/draw.rs`: creature models, effects and HUD.
+* `src/audio.rs`: a small synthesizer (oscillators, envelopes, filtered noise), the sound
+  effects, the procedurally composed day/night music and playback with crossfading.
+* `src/controls.rs`: QWERTY/AZERTY handling and saved settings.
 * `src/main.rs`: window, input, title screen, game loop and the self-test.
 
 PikCraft is a fan-made homage to block-building sandboxes and plant-squad strategy games.

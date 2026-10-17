@@ -1,5 +1,6 @@
 //! Game state and simulation: the player, the sprout squad, chompers, carried items and the nest.
 
+use crate::audio::Sfx;
 use crate::block::{ALL_BLOCKS, Block};
 use crate::entities::*;
 use crate::noise::Rng;
@@ -125,6 +126,8 @@ pub struct Player {
     pub whistle_center: Vec3,
     pub air: f32,
     pub swing: f32,
+    pub step_dist: f32,
+    pub was_in_water: bool,
 }
 
 impl Player {
@@ -227,6 +230,8 @@ pub struct Game {
     pub spawn_timer: f32,
     pub stats: Stats,
     pub was_night: bool,
+    /// Sound events for this frame, with an optional world position; drained by the front end.
+    pub sfx: Vec<(Sfx, Option<Vec3>)>,
 }
 
 fn yaw_to(from: Vec3, to: Vec3) -> f32 {
@@ -277,6 +282,8 @@ impl Game {
                 whistle_center: spawn,
                 air: 10.0,
                 swing: 0.0,
+                step_dist: 0.0,
+                was_in_water: false,
             },
             sprouts: Vec::new(),
             enemies: Vec::new(),
@@ -296,6 +303,7 @@ impl Game {
             spawn_timer: 30.0,
             stats: Stats::default(),
             was_night: false,
+            sfx: Vec::new(),
             world,
         };
         for (p, c) in g.world.sprout_spots.clone() {
@@ -333,6 +341,10 @@ impl Game {
     pub fn new_id(&mut self) -> u32 {
         self.next_id += 1;
         self.next_id
+    }
+
+    pub fn sound(&mut self, s: Sfx, at: Option<Vec3>) {
+        self.sfx.push((s, at));
     }
 
     pub fn toast(&mut self, text: &str) {
@@ -487,6 +499,7 @@ impl Game {
         self.dig.remove(&p);
         let c = p.as_vec3() + vec3(0.5, 0.5, 0.5);
         self.burst(c, b.color(), 10, 3.0);
+        self.sound(Sfx::Break, Some(c));
         let drop = b.drop();
         if drop == Block::Air {
             return;
@@ -539,6 +552,10 @@ impl Game {
 
     pub fn update(&mut self, input: &Input, dt: f32) {
         let dt = dt.min(0.05);
+        // Nobody drained the sound queue (tests, or audio disabled): don't let it grow.
+        if self.sfx.len() > 256 {
+            self.sfx.clear();
+        }
         self.elapsed += dt;
         self.time_of_day += dt / DAY_LENGTH;
         if self.time_of_day >= 1.0 {
@@ -548,12 +565,14 @@ impl Game {
         let night = self.is_night();
         if night && !self.was_night {
             self.toast("Night falls... chompers are on the prowl. Keep your sprouts close!");
+            self.sound(Sfx::Night, None);
         }
         if !night && self.was_night {
             self.toast(&format!(
                 "Day {} dawns. Night chompers melt in the sunlight.",
                 self.day
             ));
+            self.sound(Sfx::Dawn, None);
             for e in self.enemies.iter_mut().filter(|e| e.nocturnal && e.alive) {
                 e.alive = false;
                 e.hp = -1000.0;
@@ -621,6 +640,17 @@ impl Game {
             }
         }
         p.body.step(&self.world, dt, GRAVITY);
+        if p.body.in_water && !p.was_in_water && p.body.vel.y < -2.0 {
+            self.sfx.push((Sfx::Splash, None));
+        }
+        p.was_in_water = p.body.in_water;
+        if p.body.on_ground && !p.body.in_water {
+            p.step_dist += vec3(p.body.vel.x, 0.0, p.body.vel.z).length() * dt;
+            if p.step_dist > 1.9 {
+                p.step_dist = 0.0;
+                self.sfx.push((Sfx::Step, None));
+            }
+        }
         // The nest is solid: push the player out of its trunk.
         let mut away = p.body.pos - self.nest;
         let dy = away.y;
@@ -715,6 +745,7 @@ impl Game {
     }
 
     pub fn hurt_player(&mut self, dmg: f32) {
+        self.sfx.push((Sfx::Hurt, None));
         let p = &mut self.player;
         p.hp -= dmg;
         p.hurt = 0.4;
@@ -746,7 +777,12 @@ impl Game {
                         self.player.swing = 1.0;
                         let mult = self.mining_multiplier(b);
                         let prog = self.dig.entry(pos).or_insert(0.0);
+                        let before = *prog;
                         *prog += dt * mult;
+                        if (before / 0.25).floor() != (*prog / 0.25).floor() || before == 0.0 {
+                            let c = pos.as_vec3() + Vec3::splat(0.5);
+                            self.sfx.push((Sfx::Dig, Some(c)));
+                        }
                         if *prog >= h {
                             self.break_block(pos, true);
                             self.player.dig_target = None;
@@ -760,8 +796,10 @@ impl Game {
                         e.hp -= dmg;
                         e.hurt = 0.2;
                         e.body.vel += fwd * 3.0 / e.size + vec3(0.0, 2.0, 0.0);
+                        self.sfx.push((Sfx::ChomperHit, Some(e.body.center())));
                         if e.state == EnemyState::Sleeping {
                             e.state = EnemyState::Chase;
+                            self.sfx.push((Sfx::ChomperWake, Some(e.body.center())));
                         }
                     }
                     self.player.punch_cd = 0.45;
@@ -787,6 +825,7 @@ impl Game {
                 let free = matches!(here, Block::Air | Block::Water | Block::Lava);
                 if free && self.player.has(b) > 0 && !self.blocks_entity(at) && at.y < SY {
                     self.world.set(at, b);
+                    self.sound(Sfx::Place, Some(at.as_vec3() + Vec3::splat(0.5)));
                     self.player.inv[b as usize] -= 1;
                     self.player.place_cd = 0.22;
                     self.player.swing = 1.0;
@@ -883,6 +922,7 @@ impl Game {
             let (pos, color) = (s.body.pos, COLOR_RGB[s.color as usize]);
             self.player.pluck_cd = 0.12;
             self.stats.plucked += 1;
+            self.sound(Sfx::Pluck, Some(pos));
             self.burst(pos, [0.5, 0.35, 0.2], 6, 2.0);
             self.burst(pos, color, 4, 2.0);
             if self.stats.plucked == 1 {
@@ -964,6 +1004,7 @@ impl Game {
         s.timer = 0.0;
         self.player.throw_cd = 0.18;
         self.player.swing = 1.0;
+        self.sound(Sfx::Throw, None);
     }
 
     // ------------------------------------------------------------------ sprouts
@@ -1070,6 +1111,9 @@ impl Game {
                     } else if s.timer > 0.05
                         && (s.body.on_ground || s.body.in_water || s.body.in_lava)
                     {
+                        if s.body.in_water {
+                            self.sfx.push((Sfx::Splash, Some(s.body.pos)));
+                        }
                         s.state = self.land_task(task, s.body.pos);
                         s.timer = 0.0;
                         s.body.vel.x *= 0.2;
@@ -1094,7 +1138,11 @@ impl Game {
                             s.body.vel.x *= 0.5;
                             s.body.vel.z *= 0.5;
                             let prog = self.dig.entry(p).or_insert(0.0);
+                            let before = *prog;
                             *prog += s.dig_power() * dt;
+                            if (before / 0.3).floor() != (*prog / 0.3).floor() {
+                                self.sfx.push((Sfx::Dig, Some(lo + Vec3::splat(0.5))));
+                            }
                             if *prog >= b.hardness().unwrap_or(1.0) {
                                 self.break_block(p, false);
                                 let next = self.next_vein_block(p, b, s.body.pos);
@@ -1175,10 +1223,15 @@ impl Game {
                                     e.body.center() + world_off - vec3(0.0, s.body.h * 0.5, 0.0);
                                 s.body.vel = Vec3::ZERO;
                                 s.yaw = yaw_to(s.body.pos, e.body.center());
+                                let before = e.hp;
                                 e.hp -= s.attack_power() * dt;
                                 e.hurt = 0.08;
+                                if (before / 6.0).floor() != (e.hp / 6.0).floor() {
+                                    self.sfx.push((Sfx::ChomperHit, Some(e.body.center())));
+                                }
                                 if e.state == EnemyState::Sleeping {
                                     e.state = EnemyState::Chase;
+                                    self.sfx.push((Sfx::ChomperWake, Some(e.body.center())));
                                 }
                             } else {
                                 let d = e.body.center().distance(s.body.center());
@@ -1282,6 +1335,10 @@ impl Game {
         for (pos, color, drowned, burned) in died {
             self.stats.lost += 1;
             self.spirit(pos, color);
+            self.sound(Sfx::SproutDie, Some(pos));
+            if burned {
+                self.sound(Sfx::Sizzle, Some(pos));
+            }
             if drowned {
                 self.toast("A sprout drowned! Only blue sprouts can swim.");
             } else if burned {
@@ -1417,6 +1474,7 @@ impl Game {
                     if night || dp < 2.5 * e.size || e.hp < e.max_hp {
                         e.state = EnemyState::Chase;
                         e.timer = 0.0;
+                        self.sfx.push((Sfx::ChomperWake, Some(e.body.center())));
                     }
                 }
                 EnemyState::Wander => {
@@ -1465,6 +1523,7 @@ impl Game {
                     e.body.vel.z *= 0.7;
                     e.mouth = (e.timer / 0.5).min(1.0);
                     if e.timer >= 0.55 {
+                        self.sfx.push((Sfx::Bite, Some(e.body.center())));
                         let fwd = vec3(e.yaw.cos(), 0.0, e.yaw.sin());
                         let mouth = e.body.pos + fwd * (e.radius() + 0.35);
                         let reach = 1.0 * e.size;
@@ -1533,6 +1592,7 @@ impl Game {
             for (p, c) in dead {
                 self.stats.lost += 1;
                 self.spirit(p, COLOR_RGB[c as usize]);
+                self.sound(Sfx::SproutDie, Some(p));
             }
             self.sprouts.retain(|s| s.alive());
         }
@@ -1554,6 +1614,7 @@ impl Game {
                 keep.push(e);
             } else if e.hp <= -500.0 {
                 self.burst(e.body.center(), [0.5, 0.3, 0.6], 20, 3.0);
+                self.sound(Sfx::Sizzle, Some(e.body.center()));
             }
         }
         self.enemies = keep;
@@ -1564,6 +1625,7 @@ impl Game {
             self.items
                 .push(Item::new(id, ItemKind::Carcass { seeds, size }, pos));
             self.burst(pos + vec3(0.0, 0.8, 0.0), [0.75, 0.35, 0.55], 24, 4.0);
+            self.sound(Sfx::ChomperDie, Some(pos));
             self.toast("Chomper defeated! Have sprouts carry it to the Nest for new seeds.");
         }
         // Sprouts latched to an enemy that no longer exists drop off.
@@ -1814,11 +1876,13 @@ impl Game {
                 self.player.inv[b as usize] += 1;
                 self.toast_pickup(b, 1);
                 self.burst(top, b.color(), 5, 2.0);
+                self.sound(Sfx::Deliver, Some(top));
             }
             ItemKind::Carcass { seeds, .. } => {
                 let color = (0..3).max_by_key(|c| counts[*c as usize]).unwrap_or(C_RED) as u8;
                 let n = self.plant_seeds(color, seeds);
                 self.burst(top, COLOR_RGB[color as usize], 30, 4.0);
+                self.sound(Sfx::Seeds, Some(top));
                 self.toast(&format!(
                     "The Nest sprouted {} {} seeds! Pluck them with [E].",
                     n, COLOR_NAMES[color as usize]
@@ -1827,6 +1891,7 @@ impl Game {
             ItemKind::Shard => {
                 self.shards += 1;
                 self.burst(top, [1.0, 0.9, 0.3], 60, 6.0);
+                self.sound(Sfx::Shard, None);
                 self.toast(&format!(
                     "A Star Shard reached the Nest! ({}/{})",
                     self.shards, TOTAL_SHARDS
@@ -1910,6 +1975,7 @@ impl Game {
         for (b, n) in r.needs {
             self.player.inv[*b as usize] -= n;
         }
+        self.sound(Sfx::Craft, None);
         match r.output {
             Output::Blocks(b, n) => {
                 self.player.inv[b as usize] += n;
