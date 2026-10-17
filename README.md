@@ -91,7 +91,7 @@ and Star Shards each have their own sound, and sounds get quieter the further aw
 ## Download & run
 
 Download the latest build from the
-[Releases page](https://github.com/malik05051/minecraft-pikmin-merged/releases).
+[Releases page](https://github.com/malik05051/pikcraft/releases).
 
 * **Windows** (10/11, x64): unzip `pikcraft-windows-x86_64.zip` and run `PikCraft.exe`.
 * **Linux** (x86_64, glibc 2.34+): extract `pikcraft-linux-x86_64.tar.gz` and run `./pikcraft`.
