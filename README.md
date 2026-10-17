@@ -1,5 +1,7 @@
 # PikCraft
 
+## AI Disclosure : This whole game has been vibecoded by Claude Code Opus 5.5.
+
 A block-world sandbox crossed with squad-commanding strategy. You mine and build in a
 procedurally generated voxel world, and you lead a squad of little plant creatures,
 **sprouts**, who dig, fight and haul loot for you.
