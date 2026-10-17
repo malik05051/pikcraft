@@ -1,10 +1,13 @@
 [package]
 name = "pikcraft"
-version = "1.1.0"
+version = "1.2.1"
 edition = "2024"
 
 [dependencies]
 macroquad = { version = "0.4", default-features = false, features = ["audio"] }
+serde_json = "1"
+sha2 = "0.11"
+ureq = { version = "3", default-features = false, features = ["rustls", "platform-verifier"] }
 
 [profile.release]
 opt-level = 3

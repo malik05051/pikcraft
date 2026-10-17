@@ -38,6 +38,11 @@ jobs:
       - name: Build
         run: cargo build --release
 
+      # Non-blocking: shared runners can hit GitHub's anonymous API rate limit.
+      - name: Updater can reach GitHub Releases
+        continue-on-error: true
+        run: ./target/release/pikcraft --check-update
+
       - name: Gameplay self-test
         run: xvfb-run -a -s "-screen 0 1280x720x24" ./target/release/pikcraft --seed 42 --selftest selftest-linux && cat selftest-linux/log.txt
 
@@ -46,11 +51,15 @@ jobs:
           mkdir -p dist/pikcraft-linux-x86_64
           cp target/release/pikcraft README.md dist/pikcraft-linux-x86_64/
           tar -C dist -czf dist/pikcraft-linux-x86_64.tar.gz pikcraft-linux-x86_64
+          # The bare executable is what the in-game updater downloads.
+          cp target/release/pikcraft dist/pikcraft-linux-x86_64-bin
 
       - uses: actions/upload-artifact@v4
         with:
           name: pikcraft-linux-x86_64
-          path: dist/pikcraft-linux-x86_64.tar.gz
+          path: |
+            dist/pikcraft-linux-x86_64.tar.gz
+            dist/pikcraft-linux-x86_64-bin
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -75,6 +84,15 @@ jobs:
       # Hosted runners have no GPU, so use Mesa's software OpenGL for the smoke test.
       - uses: ssciwr/setup-mesa-dist-win@v2
 
+      # Non-blocking: shared runners can hit GitHub's anonymous API rate limit.
+      - name: Updater can reach GitHub Releases
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath target\release\pikcraft.exe -ArgumentList "--check-update" -Wait -PassThru -RedirectStandardOutput update-check.txt
+          Get-Content update-check.txt
+          if ($p.ExitCode -ne 0) { throw "update check failed" }
+
       - name: Gameplay self-test
         shell: pwsh
         run: |
@@ -89,11 +107,15 @@ jobs:
           Copy-Item target\release\pikcraft.exe dist\pikcraft-windows-x86_64\PikCraft.exe
           Copy-Item README.md dist\pikcraft-windows-x86_64\
           Compress-Archive -Path dist\pikcraft-windows-x86_64\* -DestinationPath dist\pikcraft-windows-x86_64.zip
+          # The bare executable is what the in-game updater downloads.
+          Copy-Item target\release\pikcraft.exe dist\pikcraft-windows-x86_64.exe
 
       - uses: actions/upload-artifact@v4
         with:
           name: pikcraft-windows-x86_64
-          path: dist/pikcraft-windows-x86_64.zip
+          path: |
+            dist/pikcraft-windows-x86_64.zip
+            dist/pikcraft-windows-x86_64.exe
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -113,6 +135,9 @@ jobs:
           merge-multiple: true
           path: dist
 
+      - name: Name the updater's Linux executable
+        run: mv dist/pikcraft-linux-x86_64-bin dist/pikcraft-linux-x86_64
+
       - uses: softprops/action-gh-release@v2
         with:
           name: PikCraft ${{ inputs.release_tag || github.ref_name }}
@@ -121,6 +146,8 @@ jobs:
           files: |
             dist/pikcraft-windows-x86_64.zip
             dist/pikcraft-linux-x86_64.tar.gz
+            dist/pikcraft-windows-x86_64.exe
+            dist/pikcraft-linux-x86_64
           generate_release_notes: true
           body: |
             **PikCraft**: a block-world sandbox where a squad of sprouts digs, fights and carries for you.
@@ -129,5 +156,9 @@ jobs:
             ### Downloads
             * **Windows 10/11 (x64)**: `pikcraft-windows-x86_64.zip`. Unzip it and run `PikCraft.exe`.
             * **Linux (x86_64, glibc 2.34+)**: `pikcraft-linux-x86_64.tar.gz`. Extract it and run `./pikcraft`.
+
+            Already playing v1.2.1 or later? The game finds new releases by itself: press **U** on the
+            title screen or in the pause menu to install one. (The bare `.exe`/binary files are what
+            the updater downloads; most players want the zip/tar.gz.)
 
             Press **F1** in game for controls. See the README for the full guide.

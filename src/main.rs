@@ -10,6 +10,7 @@ mod game;
 mod noise;
 mod physics;
 mod render;
+mod update;
 mod world;
 
 use audio::{AudioPlayer, Sfx};
@@ -21,6 +22,7 @@ use macroquad::miniquad::conf::Icon;
 use macroquad::prelude::*;
 use render::{FrameParams, TerrainRenderer};
 use std::io::Write;
+use update::{UpdateState, Updater};
 
 const SENSITIVITY: f32 = 0.0024;
 
@@ -85,12 +87,14 @@ fn window_conf() -> Conf {
 struct Options {
     seed: Option<u32>,
     selftest: Option<String>,
+    no_update_check: bool,
 }
 
 fn parse_args() -> Options {
     let mut o = Options {
         seed: None,
         selftest: None,
+        no_update_check: false,
     };
     let args: Vec<String> = std::env::args().collect();
     let mut i = 1;
@@ -99,6 +103,26 @@ fn parse_args() -> Options {
             "--seed" if i + 1 < args.len() => {
                 o.seed = args[i + 1].parse().ok();
                 i += 1;
+            }
+            "--no-update-check" => o.no_update_check = true,
+            "--check-update" => {
+                // Prints what the in-game updater would see, without changing anything.
+                let mut u = Updater::check();
+                while u.state == UpdateState::Checking {
+                    std::thread::sleep(std::time::Duration::from_millis(50));
+                    u.poll();
+                }
+                let line = u.status_line().unwrap_or_default();
+                let _ = writeln!(
+                    std::io::stdout(),
+                    "{}",
+                    line.replace(" - press [U] to install it", "")
+                );
+                std::process::exit(if matches!(u.state, UpdateState::Failed(_)) {
+                    1
+                } else {
+                    0
+                });
             }
             "--selftest" if i + 1 < args.len() => {
                 o.selftest = Some(args[i + 1].clone());
@@ -326,6 +350,51 @@ fn draw_title(seed: u32, t: f32, settings: &Settings) {
     );
 }
 
+/// Show the updater's state under the menu text (nothing while checking or when disabled).
+fn draw_update_status(updater: &Updater, y: f32) {
+    let Some(line) = updater.status_line() else {
+        return;
+    };
+    let color = match updater.state {
+        UpdateState::Available(_) | UpdateState::Installed(_) => Color::new(1.0, 0.85, 0.3, 1.0),
+        UpdateState::Downloading { .. } => Color::new(0.7, 1.0, 0.7, 1.0),
+        UpdateState::Failed(_) => Color::new(1.0, 0.65, 0.6, 0.9),
+        _ => Color::new(1.0, 1.0, 1.0, 0.6),
+    };
+    let size = if matches!(
+        updater.state,
+        UpdateState::Available(_) | UpdateState::Installed(_)
+    ) {
+        24.0
+    } else {
+        18.0
+    };
+    let m = measure_text(&line, None, size as u16, 1.0);
+    draw_rectangle(
+        (screen_width() - m.width) / 2.0 - 12.0,
+        y - size * 0.8,
+        m.width + 24.0,
+        size * 1.2,
+        Color::new(0.0, 0.0, 0.0, 0.45),
+    );
+    text_center(&line, screen_width() / 2.0, y, size, color);
+}
+
+/// [U] installs an available update, and restarts once it has been installed.
+fn handle_update_key(updater: &mut Updater, settings: &Settings, audio: &mut AudioPlayer) {
+    if !settings.layout.pressed(KeyCode::U) {
+        return;
+    }
+    match updater.state {
+        UpdateState::Available(_) => {
+            audio.play(Sfx::Click, 1.0, settings);
+            updater.install();
+        }
+        UpdateState::Installed(_) => update::relaunch(),
+        _ => {}
+    }
+}
+
 /// Layout / music / sound toggles shared by the title screen, the pause menu and the game.
 fn handle_setting_keys(settings: &mut Settings, audio: &mut AudioPlayer) {
     let layout = settings.layout;
@@ -362,6 +431,7 @@ async fn loading_frame(msg: &str) {
 
 fn main() {
     let opts = parse_args();
+    update::cleanup_previous();
     macroquad::Window::from_config(window_conf(), run(opts));
 }
 
@@ -370,6 +440,11 @@ async fn run(opts: Options) {
     let mut settings = Settings::load();
     loading_frame("Tuning the sprouts' voices...").await;
     let mut audio = AudioPlayer::load().await;
+    let mut updater = if opts.selftest.is_none() && !opts.no_update_check && settings.updates {
+        Updater::check()
+    } else {
+        Updater::disabled()
+    };
 
     // Title screen.
     if opts.selftest.is_none() {
@@ -378,6 +453,9 @@ async fn run(opts: Options) {
             let t = (get_time() - start) as f32;
             audio.update_music(false, get_frame_time(), &settings);
             draw_title(seed, t, &settings);
+            updater.poll();
+            draw_update_status(&updater, screen_height() * 0.55 + 132.0);
+            handle_update_key(&mut updater, &settings, &mut audio);
             handle_setting_keys(&mut settings, &mut audio);
             if settings.layout.pressed(KeyCode::N) {
                 seed = random_seed();
@@ -441,6 +519,7 @@ async fn run(opts: Options) {
     let mut help = selftest.is_none();
     let mut help_auto_close = 25.0f32;
     let mut debug_overlay = false;
+    let mut update_announced = false;
     let mut grabbed = false;
     let mut skip_look = true;
 
@@ -523,6 +602,21 @@ async fn run(opts: Options) {
         }
         if help && (input.primary_pressed || input.throw) {
             help = false;
+        }
+
+        // ---------------------------------------------------------------- updates
+        updater.poll();
+        if let UpdateState::Available(rel) = &updater.state {
+            if !update_announced {
+                update_announced = true;
+                game.toast(&format!(
+                    "PikCraft {} is available! Press Esc, then U to update.",
+                    rel.tag
+                ));
+            }
+        }
+        if paused {
+            handle_update_key(&mut updater, &settings, &mut audio);
         }
 
         // ---------------------------------------------------------------- audio
@@ -722,6 +816,7 @@ async fn run(opts: Options) {
                 22.0,
                 Color::new(1.0, 1.0, 0.75, 1.0),
             );
+            draw_update_status(&updater, h / 2.0 + 126.0);
             text_center(
                 &format!("World seed {}", game.world.seed),
                 w / 2.0,

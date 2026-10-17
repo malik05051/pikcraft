@@ -160,6 +160,8 @@ pub struct Settings {
     pub layout: Layout,
     pub music: bool,
     pub sounds: bool,
+    /// Check GitHub for a newer version at startup.
+    pub updates: bool,
 }
 
 impl Default for Settings {
@@ -168,6 +170,7 @@ impl Default for Settings {
             layout: Layout::detect(),
             music: true,
             sounds: true,
+            updates: true,
         }
     }
 }
@@ -195,6 +198,7 @@ impl Settings {
                 "layout" if v.eq_ignore_ascii_case("qwerty") => s.layout = Layout::Qwerty,
                 "music" => s.music = v != "off",
                 "sounds" => s.sounds = v != "off",
+                "updates" => s.updates = v != "off",
                 _ => {}
             }
         }
@@ -204,10 +208,11 @@ impl Settings {
     pub fn to_text(&self) -> String {
         let onoff = |b: bool| if b { "on" } else { "off" };
         format!(
-            "# PikCraft settings\nlayout = {}\nmusic = {}\nsounds = {}\n",
+            "# PikCraft settings\nlayout = {}\nmusic = {}\nsounds = {}\nupdates = {}\n",
             self.layout.name().to_lowercase(),
             onoff(self.music),
-            onoff(self.sounds)
+            onoff(self.sounds),
+            onoff(self.updates)
         )
     }
 
@@ -239,12 +244,14 @@ mod tests {
             layout: Layout::Azerty,
             music: false,
             sounds: true,
+            updates: false,
         };
         assert_eq!(Settings::parse(&s.to_text()), s);
         let q = Settings {
             layout: Layout::Qwerty,
             music: true,
             sounds: false,
+            updates: true,
         };
         assert_eq!(Settings::parse(&q.to_text()), q);
     }

@@ -67,6 +67,7 @@ chomper to the Nest, it grows new sprout seeds in the colour of the sprouts that
 | F1 / F3 | Help / info overlay (position, FPS, settings) |
 | L | Switch keyboard layout (QWERTY / AZERTY) |
 | M / B | Music on/off / sound effects on/off |
+| U | Install an available update (title screen or pause menu) |
 | Esc | Pause (Q quits from the pause screen) |
 
 ### Keyboard layouts
@@ -87,6 +88,23 @@ that crossfade with the sun. Plucking, throwing, digging, the whistle, chompers,
 and Star Shards each have their own sound, and sounds get quieter the further away they are.
 
 ![Night with a glow lamp](docs/night.jpg)
+
+## Updates
+
+From v1.2.0 on, PikCraft keeps itself up to date. At startup it asks GitHub in the background
+whether a newer release exists. If one does, the title screen and the pause menu show
+*"Update vX.Y.Z is available - press [U]"*. Press **U** to download it, then **U** again to
+restart into the new version.
+
+* The download is checked against the SHA-256 digest that GitHub publishes for the release
+  file. If it doesn't match, nothing is changed.
+* The new executable replaces the old one in place (the old copy is cleaned up on the next
+  start). If the game folder isn't writable, for example under `Program Files`, the game tells
+  you to download the update manually.
+* v1.2.0's updater can't follow GitHub's download redirect, so players on v1.2.0 should
+  download v1.2.1 or later manually once. From v1.2.1 on, in-game updates work end to end.
+* To turn off the check, set `updates = off` in the settings file or start the game with
+  `--no-update-check`. `pikcraft --check-update` prints what the updater sees.
 
 ## Download & run
 
