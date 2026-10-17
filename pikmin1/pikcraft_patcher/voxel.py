@@ -123,27 +123,65 @@ def sample(verts, tris, block: float, margin: int = 1) -> Grid:
     nz = int(math.ceil((max(zs) - oz) / block)) + margin
     index = TriIndex(verts, tris, block * 4)
     columns = []
+    wet: set[tuple[int, int]] = set()  # pond-bed columns whose water level comes from the shore
     lowest = None
     for k in range(nz):
         for i in range(nx):
             x = ox + (i + 0.5) * block
             z = oz + (k + 0.5) * block
             hits = index.hits(x, z)
-            ground = next(((h, a) for h, a in hits if a != ATTR_WATER), None)
-            water = next((h for h, a in hits if a == ATTR_WATER), None)
-            if ground is None:
+            if not hits:
                 columns.append(Column(None, None, AIR))
                 continue
-            g = int(round((ground[0] - oy) / block)) - 1  # top layer whose top face is at the surface
+            ground = next(((h, a) for h, a in hits if a != ATTR_WATER), None)
+            water = next((h for h, a in hits if a == ATTR_WATER), None)
             w = None
-            if water is not None and water > ground[0] + block * 0.25:
+            if ground is None or (water is not None and abs(water - ground[0]) <= block * 0.25):
+                # Pikmin marks the pond bed itself as water; the visible surface is not collision.
+                ground = (water, ATTR_WATER)
+                wet.add((i, k))
+            elif water is not None and water > ground[0] + block * 0.25:
                 w = int(round((water - oy) / block)) - 1
-                if w <= g:
-                    w = None
-            surface = SAND if w is not None else surface_block(ground[1])
+            g = int(round((ground[0] - oy) / block)) - 1  # top layer whose top face is at the surface
+            if w is not None and w <= g:
+                w = None
+            surface = SAND if w is not None or (i, k) in wet else surface_block(ground[1])
             columns.append(Column(g, w, surface))
             lowest = g if lowest is None else min(lowest, g)
-    return Grid(ox, oz, oy, block, nx, nz, columns, (lowest or 0) - 2)
+    grid = Grid(ox, oz, oy, block, nx, nz, columns, (lowest or 0) - 2)
+    _fill_ponds(grid, wet)
+    return grid
+
+
+def _fill_ponds(grid: Grid, wet: set[tuple[int, int]]) -> None:
+    """Fill each connected pond bed with water up to (nearly) the lowest dry ground around it."""
+    seen: set[tuple[int, int]] = set()
+    for start in wet:
+        if start in seen:
+            continue
+        pond, rim, todo = [], [], [start]
+        seen.add(start)
+        while todo:
+            i, k = todo.pop()
+            pond.append((i, k))
+            for n in ((i + 1, k), (i - 1, k), (i, k + 1), (i, k - 1)):
+                c = grid.col(*n)
+                if c is None or c.ground is None:
+                    continue
+                if n in wet:
+                    if n not in seen:
+                        seen.add(n)
+                        todo.append(n)
+                else:
+                    rim.append(c.ground)
+        if not rim:
+            continue
+        rim.sort()
+        level = rim[len(rim) // 4]  # a low shore point, robust to the odd stray column
+        for i, k in pond:
+            c = grid.col(i, k)
+            if level > c.ground:
+                c.water = level
 
 
 def block_at(grid: Grid, i: int, y: int, k: int) -> int:
@@ -192,56 +230,80 @@ def _visible(block: int, neighbour: int) -> bool:
     return neighbour in (AIR, WATER, LEAVES)
 
 
+def _faces(grid: Grid, include_bottom: bool):
+    """Visible block faces as {direction: {slice: {(a, b): texture}}}, visiting only exposed heights.
+
+    Coordinates are (x, y - floor, z) projected onto each direction's (axis, u, v) axes.
+    """
+    ylo = grid.floor
+    out: dict[str, dict[int, dict[tuple[int, int], str]]] = {name: {} for name in DIRS}
+    axes = {}
+    for name, (n, u, v) in DIRS.items():
+        axes[name] = ([i for i in range(3) if n[i] != 0][0], [i for i in range(3) if u[i] != 0][0], [i for i in range(3) if v[i] != 0][0])
+
+    def add(name, x, y, z, blk):
+        kind = "top" if name == "+y" else "bottom" if name == "-y" else "side"
+        axis, ua, va = axes[name]
+        p = (x, y - ylo, z)
+        out[name].setdefault(p[axis], {})[(p[ua], p[va])] = face_texture(blk, kind)
+
+    def solid_top(c):  # highest solid layer of a column (or below the floor)
+        return c.ground if c is not None and c.ground is not None else ylo - 1
+
+    def wet_top(c):  # highest non-air layer of a column
+        if c is None or c.ground is None:
+            return ylo - 1
+        return max(c.ground, c.water if c.water is not None else c.ground)
+
+    for k in range(grid.nz):
+        for i in range(grid.nx):
+            c = grid.col(i, k)
+            if c is None or c.ground is None:
+                continue
+            top = wet_top(c)
+            # Up: the ground's top (under air or water) and the water surface.
+            add("+y", i, c.ground, k, block_at(grid, i, c.ground, k))
+            if c.water is not None:
+                add("+y", i, c.water, k, WATER)
+            if include_bottom:
+                add("-y", i, ylo, k, block_at(grid, i, ylo, k))
+            # Sides: solid blocks show above the neighbour's ground; water only above its water.
+            for name, di, dk in (("+x", 1, 0), ("-x", -1, 0), ("+z", 0, 1), ("-z", 0, -1)):
+                nb = grid.col(i + di, k + dk)
+                for y in range(max(solid_top(nb), ylo - 1) + 1, top + 1):
+                    blk = block_at(grid, i, y, k)
+                    if blk == WATER and y <= wet_top(nb):
+                        continue
+                    add(name, i, y, k, blk)
+    return out
+
+
 def mesh(grid: Grid, include_bottom: bool = False) -> list[Quad]:
     """Greedy-meshed visible faces of the block grid."""
-    top = max((max(c.ground, c.water or c.ground) for c in grid.columns if c.ground is not None), default=0) + 1
-    ylo, yhi = grid.floor, top
     quads: list[Quad] = []
-    size = (grid.nx, yhi - ylo + 1, grid.nz)
-
-    def get(x, y, z):
-        return block_at(grid, x, y + ylo, z)
-
-    for name, (n, u, v) in DIRS.items():
-        if name == "-y" and not include_bottom:
-            continue
+    for name, slices in _faces(grid, include_bottom).items():
+        n = DIRS[name][0]
         axis = [i for i in range(3) if n[i] != 0][0]
-        ua = [i for i in range(3) if u[i] != 0][0]
-        va = [i for i in range(3) if v[i] != 0][0]
+        ua = [i for i in range(3) if DIRS[name][1][i] != 0][0]
+        va = [i for i in range(3) if DIRS[name][2][i] != 0][0]
         sgn = n[axis]
-        kind = "top" if name == "+y" else "bottom" if name == "-y" else "side"
-        for d in range(size[axis]):
-            # Mask of face textures on this slice.
-            mask: dict[tuple[int, int], str] = {}
-            for a in range(size[ua]):
-                for b in range(size[va]):
-                    p = [0, 0, 0]
-                    p[axis], p[ua], p[va] = d, a, b
-                    q = list(p)
-                    q[axis] += sgn
-                    blk = get(*p)
-                    if blk != AIR and _visible(blk, get(*q)):
-                        mask[(a, b)] = face_texture(blk, kind)
+        for d, mask in sorted(slices.items()):
             # Greedy merge rectangles of equal texture.
             done = set()
-            for a in range(size[ua]):
-                for b in range(size[va]):
-                    if (a, b) in done or (a, b) not in mask:
-                        continue
-                    tex = mask[(a, b)]
-                    w = 1
-                    while (a, b + w) in mask and mask[(a, b + w)] == tex and (a, b + w) not in done:
-                        w += 1
-                    h = 1
-                    while all(
-                        (a + h, b + j) in mask and mask[(a + h, b + j)] == tex and (a + h, b + j) not in done
-                        for j in range(w)
-                    ):
-                        h += 1
-                    for da in range(h):
-                        for db in range(w):
-                            done.add((a + da, b + db))
-                    quads.append(_make_quad(grid, ylo, axis, ua, va, sgn, d, a, b, h, w, tex, n))
+            for a, b in sorted(mask):
+                if (a, b) in done:
+                    continue
+                tex = mask[(a, b)]
+                w = 1
+                while mask.get((a, b + w)) == tex and (a, b + w) not in done:
+                    w += 1
+                h = 1
+                while all(mask.get((a + h, b + j)) == tex and (a + h, b + j) not in done for j in range(w)):
+                    h += 1
+                for da in range(h):
+                    for db in range(w):
+                        done.add((a + da, b + db))
+                quads.append(_make_quad(grid, grid.floor, axis, ua, va, sgn, d, a, b, h, w, tex, n))
     return quads
 
 

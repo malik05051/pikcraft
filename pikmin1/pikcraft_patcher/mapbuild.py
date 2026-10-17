@@ -1,8 +1,9 @@
 """Graft block terrain into a Pikmin map model.
 
-The original collision triangles, vertices, materials, lights and carrying routes stay as they are
-(gameplay is unchanged); the joints' draw lists are pointed at new block meshes instead of the
-original terrain meshes.
+The collision data, vertices, materials, lights and carrying routes all stay as they are, so
+gameplay is unchanged. The joints' draw lists point at new block meshes instead of the original
+terrain meshes. Every block material is a copy of one of the map's own materials with only its
+texture swapped, so the game's renderer sees nothing it hasn't drawn before.
 """
 
 from __future__ import annotations
@@ -14,6 +15,14 @@ from . import modfile as mf
 from . import textures, voxel
 
 MAX_VERTICES = 0xFFFF  # display lists index vertices with 16 bits (0..0xFFFF)
+
+# Blend class each block texture needs, in order of preference for its template material.
+BLEND = {
+    "water": (mf.MATFLAG_ALPHA_BLEND, mf.MATFLAG_OPAQUE),
+    "leaves": (mf.MATFLAG_ALPHA_TEST, mf.MATFLAG_OPAQUE),
+}
+DEFAULT_BLEND = (mf.MATFLAG_OPAQUE,)
+BLEND_MASK = mf.MATFLAG_OPAQUE | mf.MATFLAG_ALPHA_TEST | mf.MATFLAG_ALPHA_BLEND
 
 
 class BuildError(Exception):
@@ -27,8 +36,19 @@ class BuildReport:
     quads: int
     vertices_before: int
     vertices_after: int
-    template_material: int
+    templates: dict[str, int]  # block texture -> material it was copied from
     meshes_hidden: int
+
+
+@dataclass
+class Template:
+    mesh_index: int
+    material_index: int
+    joint_index: int
+    mesh: mf.Mesh
+    group: mf.MtxGroup
+    displist_flags: int
+    vertex: tuple  # a vertex of the template mesh: (mtx, pos, nrm, clr, texs)
 
 
 def _matpoly_owner(joints: list[mf.Joint]) -> dict[int, tuple[int, int]]:
@@ -44,29 +64,33 @@ def _face_count(mesh: mf.Mesh) -> int:
     return sum(dl.face_count for g in mesh.groups for dl in g.displists)
 
 
-def pick_template(meshes: list[mf.Mesh], joints: list[mf.Joint], mats: mf.MaterialChunk) -> tuple[int, int]:
-    """(mesh index, material index) of the most-drawn single-texture terrain material."""
-    owner = _matpoly_owner(joints)
-    score: Counter = Counter()
-    for mi, mesh in enumerate(meshes):
-        if mi not in owner or not (mesh.flags & mf.MESH_TEX0):
-            continue
-        mat = owner[mi][1]
-        if len(mats.materials[mat].tex_attr_offsets) != 1:
-            continue
-        score[(mi, mat)] += _face_count(mesh)
-    if not score:
-        raise BuildError("no single-texture material to base block materials on")
-    return score.most_common(1)[0][0]
-
-
 def _first_vertex(mesh: mf.Mesh):
     for g in mesh.groups:
         for dl in g.displists:
             for _op, verts in mf.decode_displist(dl.data, mesh.flags):
                 if verts:
                     return g, dl, verts[0]
-    raise BuildError("template mesh has no vertices")
+    return None
+
+
+def pick_template(meshes, joints, mats: mf.MaterialChunk, blend: int = mf.MATFLAG_OPAQUE) -> Template | None:
+    """The most-drawn textured mesh whose material has one texture and the given blend class."""
+    owner = _matpoly_owner(joints)
+    score: Counter = Counter()
+    for mi, mesh in enumerate(meshes):
+        if mi not in owner or not (mesh.flags & mf.MESH_TEX0):
+            continue
+        mat = mats.materials[owner[mi][1]]
+        if len(mat.tex_attr_offsets) != 1 or mat.flags & mf.MATFLAG_SKIP or (mat.flags & BLEND_MASK) != blend:
+            continue
+        score[mi] += _face_count(mesh)
+    for mi, _ in score.most_common():
+        first = _first_vertex(meshes[mi])
+        if first:
+            group, dl, vertex = first
+            ji, mat = owner[mi]
+            return Template(mi, mat, ji, meshes[mi], group, dl.flags, vertex)
+    return None
 
 
 def _tri_corners(prims):
@@ -79,6 +103,9 @@ def _tri_corners(prims):
             for i in range(len(vs) - 2):
                 a, b, c = vs[i], vs[i + 1], vs[i + 2]
                 yield (a, b, c) if i % 2 == 0 else (b, a, c)
+        elif op == mf.GX_TRIANGLEFAN:
+            for i in range(1, len(vs) - 1):
+                yield vs[0], vs[i], vs[i + 1]
 
 
 def front_is_ccw(meshes: list[mf.Mesh], verts, normals) -> bool:
@@ -116,6 +143,7 @@ def build(data: bytes, block_size: float, keep_original: bool = False) -> tuple[
     meshes = mf.decode_meshes(payload(mf.CHUNK_MESH))
     joints = mf.decode_joints(payload(mf.CHUNK_JOINT))
     prism = mf.decode_collprism(payload(mf.CHUNK_COLLPRISM))
+    ccw = front_is_ccw(meshes, verts, normals)
 
     # ---- terrain blocks from the collision surface
     tri_list = [(t.verts[0], t.verts[1], t.verts[2], t.attribute) for t in prism.tris]
@@ -128,23 +156,31 @@ def build(data: bytes, block_size: float, keep_original: bool = False) -> tuple[
             break
         size *= 1.25  # too detailed for 16-bit indices: use bigger blocks
 
-    template_mesh_idx, template_mat_idx = pick_template(meshes, joints, mats)
-    template_mesh = meshes[template_mesh_idx]
-    owner_joint = _matpoly_owner(joints)[template_mesh_idx][0]
-    t_group, _t_dl, t_vertex = _first_vertex(template_mesh)
-    t_mtx, _pos, _nrm, _clr, t_tex = t_vertex
-    ccw = front_is_ccw(meshes, verts, normals)
-    # One UV list per texture coordinate slot the template mesh uses (chunks 0x18..0x1f).
-    uv_lists = [mf.decode_vec2s(payload(mf.CHUNK_TEXCOORD0 + n)) for n in range(len(t_tex))]
-
-    # ---- textures, attributes and cloned materials per block texture
+    # ---- a template (material + mesh layout) per block texture
     names = sorted({q.texture for q in quads})
-    tex_attr_template = attrs[mats.materials[template_mat_idx].tex_attrs()[0]]
+    cache: dict[int, Template | None] = {}
+
+    def template_for(name: str) -> Template:
+        for blend in BLEND.get(name, DEFAULT_BLEND):
+            if blend not in cache:
+                cache[blend] = pick_template(meshes, joints, mats, blend)
+            if cache[blend]:
+                return cache[blend]
+        raise BuildError("no single-texture material to base block materials on")
+
+    templates = {name: template_for(name) for name in names}
+    slots = max(len(t.vertex[4]) for t in templates.values())
+    # One UV list per texture coordinate slot the templates use (chunks 0x18..0x1f).
+    uv_lists = [mf.decode_vec2s(payload(mf.CHUNK_TEXCOORD0 + n)) for n in range(slots)]
+
     mat_index: dict[str, int] = {}
     for name in names:
+        t = templates[name]
+        src = mats.materials[t.material_index]
+        attr = attrs[src.tex_attrs()[0]]
         texs.append(textures.make_teximg(name))
-        attrs.append(mf.TexAttr(len(texs) - 1, tex_attr_template.unknown, 0, 0, tex_attr_template.lod_bias))
-        mats.materials.append(mats.materials[template_mat_idx].with_tex_attr(len(attrs) - 1))
+        attrs.append(mf.TexAttr(len(texs) - 1, attr.unknown, 0, 0, attr.lod_bias))
+        mats.materials.append(src.with_tex_attr(len(attrs) - 1))
         mat_index[name] = len(mats.materials) - 1
 
     # ---- geometry
@@ -152,7 +188,7 @@ def build(data: bytes, block_size: float, keep_original: bool = False) -> tuple[
     nrm_index: dict[tuple, int] = {}
     uv_index: list[dict[tuple, int]] = [{} for _ in uv_lists]
     white = None
-    if template_mesh.flags & mf.MESH_VTXCOLOR:
+    if any(t.mesh.flags & mf.MESH_VTXCOLOR for t in templates.values()):
         colours.append((255, 255, 255, 255))
         white = len(colours) - 1
 
@@ -177,10 +213,11 @@ def build(data: bytes, block_size: float, keep_original: bool = False) -> tuple[
 
     by_texture: dict[str, list[tuple]] = {n: [] for n in names}
     for q in quads:
+        t = templates[q.texture]
         n = nidx(q.normal)
         vs = []
         for p, uv in zip(q.corners, q.uvs):
-            vs.append((t_mtx, vidx(p), n, white, tuple(tidx(slot, uv) for slot in range(len(uv_lists)))))
+            vs.append((t.vertex[0], vidx(p), n, white, tuple(tidx(s, uv) for s in range(len(t.vertex[4])))))
         # Quads are counter-clockwise seen from outside; match the map's own front-face winding.
         if ccw:
             by_texture[q.texture] += [vs[0], vs[1], vs[2], vs[0], vs[2], vs[3]]
@@ -189,33 +226,25 @@ def build(data: bytes, block_size: float, keep_original: bool = False) -> tuple[
     if any(len(u) > MAX_VERTICES + 1 for u in uv_lists) or len(normals) > MAX_VERTICES + 1:
         raise BuildError("map uses too many texture coordinates or normals for 16-bit indices")
 
-    new_meshes = []
-    for name in names:
-        dl = mf.encode_triangles(by_texture[name], template_mesh.flags)
-        faces = len(by_texture[name]) // 3
-        new_meshes.append(
-            mf.Mesh(
-                template_mesh.parent_joint,
-                template_mesh.flags,
-                [mf.MtxGroup(list(t_group.deps), [mf.DispList(template_mesh.groups[0].displists[0].flags, faces, dl)])],
-            )
-        )
-
-    # ---- point the draw lists at the blocks
+    # ---- new meshes, drawn from each template's joint
     hidden = 0
-    first_new_mesh = len(meshes)
-    meshes += new_meshes
     if not keep_original:
         for j in joints:
             hidden += len(j.matpolys)
             j.matpolys = []
-    joint = joints[owner_joint]
-    joint.matpolys += [(mat_index[name], first_new_mesh + i) for i, name in enumerate(names)]
-    xs = [p[0] for p in vert_index]
-    ys = [p[1] for p in vert_index]
-    zs = [p[2] for p in vert_index]
-    joint.bounds_min = (min(joint.bounds_min[0], *xs), min(joint.bounds_min[1], *ys), min(joint.bounds_min[2], *zs))
-    joint.bounds_max = (max(joint.bounds_max[0], *xs), max(joint.bounds_max[1], *ys), max(joint.bounds_max[2], *zs))
+    for name in names:
+        t = templates[name]
+        dl = mf.encode_triangles(by_texture[name], t.mesh.flags)
+        group = mf.MtxGroup(list(t.group.deps), [mf.DispList(t.displist_flags, len(by_texture[name]) // 3, dl)])
+        meshes.append(mf.Mesh(t.mesh.parent_joint, t.mesh.flags, [group]))
+        joints[t.joint_index].matpolys.append((mat_index[name], len(meshes) - 1))
+
+    lo = tuple(min(p[i] for p in vert_index) for i in range(3))
+    hi = tuple(max(p[i] for p in vert_index) for i in range(3))
+    for ji in {t.joint_index for t in templates.values()}:
+        j = joints[ji]
+        j.bounds_min = tuple(min(j.bounds_min[i], lo[i]) for i in range(3))
+        j.bounds_max = tuple(max(j.bounds_max[i], hi[i]) for i in range(3))
 
     mod.set(mf.CHUNK_VERTEX, mf.encode_vec3s(verts))
     mod.set(mf.CHUNK_NORMAL, mf.encode_vec3s(normals))
@@ -235,7 +264,7 @@ def build(data: bytes, block_size: float, keep_original: bool = False) -> tuple[
         len(quads),
         len(verts) - len(vert_index),
         len(verts),
-        template_mat_idx,
+        {name: t.material_index for name, t in templates.items()},
         hidden,
     )
     return mod.to_bytes(), report

@@ -13,7 +13,7 @@ from tests.test_voxel import terrain  # noqa: E402
 
 def pvw_material(tex_attr: int) -> bytes:
     """Smallest PVW material with one texture slot (all animation tracks empty)."""
-    b = struct.pack(">IIII", mf.MATFLAG_PVW, 0, 0xFFFFFFFF, 0)
+    b = struct.pack(">IIII", mf.MATFLAG_PVW | mf.MATFLAG_OPAQUE, 0, 0xFFFFFFFF, 0)
     b += bytes(12) + struct.pack(">II", 0, 0)  # polygon colour + anim3 + anim1
     b += bytes(8) + bytes(16)  # lighting, pe
     b += struct.pack(">I", 0) + bytes(12) + struct.pack(">I", 0)  # tex info, no texgens
@@ -32,7 +32,7 @@ def synthetic_map(ccw: bool = False) -> bytes:
     m.set(mf.CHUNK_TEXATTR, mf.encode_texattrs([mf.TexAttr(0, 0, 0, 0, 0.0)]))
     mats = mf.MaterialChunk([], [])
     raw = pvw_material(0)
-    mats.materials.append(mf.Material(raw, mf.MATFLAG_PVW, 0, [len(raw) - 4 * 3 - 56]))
+    mats.materials.append(mf.Material(raw, mf.MATFLAG_PVW | mf.MATFLAG_OPAQUE, 0, [len(raw) - 4 * 3 - 56]))
     m.set(mf.CHUNK_MATERIAL, mf.encode_materials(mats))
     flags = mf.MESH_POS_NRM | mf.MESH_TEX0
     dl_verts = []

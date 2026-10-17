@@ -64,6 +64,30 @@ class VoxelTests(unittest.TestCase):
         self.assertEqual(col.surface, voxel.SAND)
         self.assertEqual(voxel.block_at(grid, i, col.water, k), voxel.WATER)
 
+    def test_water_marked_pond_bed_fills_to_shore(self):
+        # As in Pikmin's maps: the pond bed is collision marked "water" and there is no surface.
+        verts, tris = terrain(pond=False)
+        for x in range(len(verts)):
+            vx, vy, vz = verts[x]
+            if 60 <= vx <= 120 and 60 <= vz <= 120:
+                verts[x] = (vx, vy - 40, vz)
+        tris = [
+            (a, b, c, voxel.ATTR_WATER if all(60 <= verts[v][0] <= 120 and 60 <= verts[v][2] <= 120 for v in (a, b, c)) else t)
+            for a, b, c, t in tris
+        ]
+        grid = voxel.sample(verts, tris, block=8.0)
+        i = int((90 - grid.origin_x) / grid.size)
+        k = int((90 - grid.origin_z) / grid.size)
+        col = grid.col(i, k)
+        self.assertIsNotNone(col.ground)
+        self.assertEqual(col.surface, voxel.SAND)
+        self.assertIsNotNone(col.water)
+        self.assertGreater(col.water, col.ground)
+        # No holes where the bed is marked water.
+        for kk in range(1, grid.nz - 1):
+            for ii in range(1, grid.nx - 1):
+                self.assertIsNotNone(grid.col(ii, kk).ground)
+
     def test_greedy_mesh_merges_faces(self):
         verts, tris = terrain(pond=False)
         grid = voxel.sample(verts, tris, block=8.0)

@@ -30,6 +30,10 @@ CHUNK_COLLGRID = 0x110
 CHUNK_EOF = 0xFFFF
 
 MATFLAG_PVW = 0x1  # material carries the full PVW (TEV/colour/texture) description
+MATFLAG_OPAQUE = 0x100
+MATFLAG_ALPHA_TEST = 0x200  # hard-edged cutout
+MATFLAG_ALPHA_BLEND = 0x400  # translucent
+MATFLAG_SKIP = 0x10000
 
 # Mesh feature flags (include/Mesh.h)
 MESH_POS_NRM = 1 << 0  # per-vertex matrix index byte is present
@@ -39,6 +43,7 @@ MESH_TEX0 = 1 << 3
 
 GX_TRIANGLES = 0x90
 GX_TRIANGLESTRIP = 0x98
+GX_TRIANGLEFAN = 0xA0
 
 
 class ModError(Exception):

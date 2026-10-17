@@ -3,14 +3,15 @@
 PikCraft running inside Nintendo's real Pikmin 1 engine. The patcher rebuilds each level's map
 model as Minecraft-style blocks and writes a new disc image you play in [Dolphin](https://dolphin-emu.org).
 
-> **Work in progress.** The block terrain is not yet tested on a real disc. Breaking and placing
-> blocks in game needs code changes and will come later.
+> **Early version.** The block terrain has been tested on the PAL disc (GPIP01) in Dolphin: the
+> Impact Site plays fine. The other areas convert the same way but haven't been played through
+> yet. Breaking and placing blocks in game needs code changes and will come later.
 
 ## What it does
 
 - It probes every level's collision surface on a block grid, the same surface Pikmin and Olimar
   walk on. Ground becomes grass, dirt and stone; rock becomes stone; wood becomes planks; mud stays
-  mud; ponds become water over sand.
+  mud. Pond beds (marked as water in the collision) become sand, filled with water up to the shore.
 - It greedy-merges the visible faces and textures them with original 16×16 pixel art. No Mojang
   assets are used.
 - The original terrain is no longer drawn. Collision, enemies, ship parts, carrying routes and
@@ -51,6 +52,7 @@ the disc image you supply; please dump your own copy of the game.
   [projectPiki decompilation](https://github.com/projectPiki/pikmin) (`BaseShape::read`).
 - `pikcraft_patcher/voxel.py` turns collision triangles into a block grid and a greedy face mesh.
 - `pikcraft_patcher/mapbuild.py` grafts the block meshes, textures and materials into the map
-  model. It clones the map's own most-used terrain material and matches its triangle winding.
+  model. Each block material is a copy of one of the map's own materials (opaque, or translucent
+  for water), so the renderer sees nothing new. It also matches the map's triangle winding.
 - `pikcraft_patcher/textures.py` holds the procedural block textures and the GameCube RGB565/RGB5A3
   encoders.
