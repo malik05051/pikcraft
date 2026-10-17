@@ -1,1 +1,128 @@
-# minecraft-pikmin-merged
+# PikCraft
+
+A block-world sandbox crossed with squad-commanding strategy. You mine and build in a
+procedurally generated voxel world, and you lead a squad of little plant creatures,
+**sprouts**, who dig, fight and haul loot for you.
+
+![Your squad follows you](docs/squad.jpg)
+
+## Goal
+
+Five **Star Shards** are hidden around the world. Each one is too heavy for you to carry,
+so your sprouts have to haul it back to the **Nest**. Follow the compass at the top of the
+screen and the golden light beams. The Nest has a green beam.
+
+Each shard poses a different challenge:
+
+| Shard | Challenge |
+|-------|-----------|
+| Meadow | A big chomper sleeps next to it |
+| Hill top | High up in the mountains |
+| Lava moat | Only **red** sprouts survive fire (or bridge it with blocks) |
+| Lake island | Only **blue** sprouts can swim (or build a bridge) |
+| Buried vault | Deep under a crystal pillar. Dig down to it |
+
+## Sprouts
+
+* **Red**: fire-proof, hit twice as hard.
+* **Yellow**: thrown higher, dig twice as fast.
+* **Blue**: can swim. Others drown in deep water.
+
+Buried sprouts show a leaf poking out of the grass. Walk up and press **E** to pluck them.
+Sprouts grow from leaf to bud to flower over time and get faster as they mature.
+
+Throw a sprout at:
+
+* a **block**: it digs the block out and keeps digging the same kind of block nearby.
+  Other sprouts carry the drops home, and they end up in your bag.
+* a **chomper**: it latches on and attacks.
+* an **item**: it helps carry it. The label shows `carriers/weight`.
+
+Carriers find their own way back to the Nest and dig a tunnel when there's no other route.
+
+![Sprouts digging](docs/digging.jpg)
+
+## Chompers
+
+Chompers sleep during the day and wake when you get close. At night they all wake up and
+more of them roam. Those night chompers melt at sunrise. If your sprouts carry a defeated
+chomper to the Nest, it grows new sprout seeds in the colour of the sprouts that carried it.
+
+![Fighting a chomper](docs/attack.jpg)
+
+## Controls
+
+| Key | Action |
+|-----|--------|
+| WASD / Space / Shift | Move / jump & swim / sprint |
+| Mouse | Look |
+| 1 | Squad slot: **left-click** throws a sprout, **right-click** whistles |
+| 2-9, mouse wheel | Block slots: **left-click** mines or attacks, **right-click** places |
+| F | Throw a sprout (from any slot) |
+| R (hold) | Whistle: recall sprouts inside the circle |
+| E | Pluck a buried sprout |
+| X | Dismiss the squad |
+| Tab | Change which colour you throw |
+| C | Crafting (planks, pickaxes, glass, bricks, glow lamps, sprout seeds) |
+| F1 | Help |
+| Esc | Pause (Q quits from the pause screen) |
+
+![Night with a glow lamp](docs/night.jpg)
+
+## Download & run
+
+Download the latest build from the
+[Releases page](https://github.com/malik05051/minecraft-pikmin-merged/releases).
+
+* **Windows** (10/11, x64): unzip `pikcraft-windows-x86_64.zip` and run `PikCraft.exe`.
+* **Linux** (x86_64, glibc 2.34+): extract `pikcraft-linux-x86_64.tar.gz` and run `./pikcraft`.
+  You need an OpenGL driver plus `libGL`, `libX11` and `libXi`. Desktop distros ship these.
+
+Command-line options: `--seed N` plays a specific world, and `--version` prints the version.
+
+## Building from source
+
+Install [Rust](https://rustup.rs), then:
+
+```sh
+cargo run --release
+```
+
+You don't need any system development packages. X11 and OpenGL are loaded at runtime.
+
+To cross-compile a Windows build from Linux:
+
+```sh
+rustup target add x86_64-pc-windows-gnu
+sudo apt install gcc-mingw-w64-x86-64
+cargo build --release --target x86_64-pc-windows-gnu
+```
+
+### Tests
+
+```sh
+cargo test --release                                    # world gen, lighting, path finding, sprout AI, winnability
+xvfb-run -a ./target/release/pikcraft --selftest out    # scripted play-through, saves screenshots to out/
+```
+
+`--selftest` plucks a squad, throws it at blocks, whistles it back, fights a chomper and
+checks each step. It exits with a non-zero code if something fails. CI runs it on both
+Linux and Windows.
+
+## How it's made
+
+PikCraft is written in Rust on top of [macroquad](https://macroquad.rs). Every texture,
+model and the window icon is generated in code, so the game ships as one small executable
+with no asset files.
+
+* `src/world.rs`: 160×160×64 voxel world, terrain/cave/ore generation, landmark placement,
+  incremental sky and block light propagation, voxel ray casts, A* path finding (with digging).
+* `src/render.rs`: procedural texture atlas, chunk meshing with ambient occlusion and smooth
+  lighting, and a custom GPU pipeline with fog and day/night.
+* `src/game.rs`: player, sprout AI, chompers, carrying, nest, crafting, day/night cycle.
+* `src/draw.rs`: creature models, effects and HUD.
+* `src/main.rs`: window, input, title screen, game loop and the self-test.
+
+PikCraft is a fan-made homage to block-building sandboxes and plant-squad strategy games.
+It is not affiliated with or endorsed by Mojang, Microsoft or Nintendo, and it uses no
+assets from their games.
