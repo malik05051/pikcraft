@@ -101,6 +101,8 @@ restart into the new version.
 * The new executable replaces the old one in place (the old copy is cleaned up on the next
   start). If the game folder isn't writable, for example under `Program Files`, the game tells
   you to download the update manually.
+* v1.2.0's updater can't follow GitHub's download redirect, so players on v1.2.0 should
+  download v1.2.1 or later manually once. From v1.2.1 on, in-game updates work end to end.
 * To turn off the check, set `updates = off` in the settings file or start the game with
   `--no-update-check`. `pikcraft --check-update` prints what the updater sees.
 

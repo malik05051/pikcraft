@@ -90,26 +90,45 @@ fn agent(roots: ureq::tls::RootCerts) -> ureq::Agent {
         .tls_config(tls)
         .timeout_global(Some(Duration::from_secs(300)))
         .user_agent(format!("PikCraft/{}", env!("CARGO_PKG_VERSION")))
+        // Redirects are followed by hand in `get`: ureq trips over the chunked body of
+        // GitHub's 302 for release downloads when it follows them itself.
+        .max_redirects(0)
+        .http_status_as_error(false)
         .build()
         .into()
 }
 
-/// GET with the OS trust store first (works behind corporate TLS proxies), then Mozilla's
-/// bundled roots if the OS verifier can't decide (e.g. revocation servers unreachable).
-fn get(url: &str, accept: &str) -> Result<ureq::http::Response<ureq::Body>, ureq::Error> {
+/// One request with the OS trust store first (works behind corporate TLS proxies), then
+/// Mozilla's bundled roots if the OS verifier can't decide (e.g. revocation servers unreachable).
+fn get_once(url: &str, accept: &str) -> Result<ureq::http::Response<ureq::Body>, ureq::Error> {
     use ureq::tls::RootCerts;
-    let first = agent(RootCerts::PlatformVerifier)
-        .get(url)
-        .header("Accept", accept)
-        .call();
-    match first {
-        Err(e) if !matches!(e, ureq::Error::StatusCode(_)) => agent(RootCerts::WebPki)
-            .get(url)
-            .header("Accept", accept)
-            .call()
-            .map_err(|_| e),
-        other => other,
+    let req = |roots| agent(roots).get(url).header("Accept", accept).call();
+    req(RootCerts::PlatformVerifier).or_else(|e| req(RootCerts::WebPki).map_err(|_| e))
+}
+
+/// GET that follows up to five redirects and turns HTTP errors into messages.
+fn get(url: &str, accept: &str) -> Result<ureq::http::Response<ureq::Body>, String> {
+    let mut url = url.to_string();
+    for _ in 0..5 {
+        let mut resp = get_once(&url, accept).map_err(|e| e.to_string())?;
+        let status = resp.status();
+        if status.is_redirection() {
+            let next = resp
+                .headers()
+                .get("location")
+                .and_then(|v| v.to_str().ok())
+                .ok_or("redirect without a location")?
+                .to_string();
+            let _ = resp.body_mut().read_to_vec();
+            url = next;
+            continue;
+        }
+        if !status.is_success() {
+            return Err(format!("HTTP {status}"));
+        }
+        return Ok(resp);
     }
+    Err("too many redirects".to_string())
 }
 
 /// API root, overridable for testing (`PIKCRAFT_UPDATE_API=http://127.0.0.1:8000`).
@@ -130,8 +149,8 @@ fn fetch_latest() -> Result<Option<Release>, String> {
 
 /// Stream the asset into memory, reporting progress, and check size and digest.
 fn download(rel: &Release, progress: &dyn Fn(f32)) -> Result<Vec<u8>, String> {
-    let resp =
-        get(&rel.url, "application/octet-stream").map_err(|e| format!("download failed ({e})"))?;
+    let resp = get(&rel.url, "application/octet-stream")
+        .map_err(|e| format!("download failed ({e}). Get it from {RELEASES_PAGE}"))?;
     let total = resp.body().content_length().unwrap_or(rel.size).max(1);
     let mut reader = resp.into_body().into_reader();
     let mut data = Vec::with_capacity(total as usize);

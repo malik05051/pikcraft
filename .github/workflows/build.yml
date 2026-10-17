@@ -157,7 +157,7 @@ jobs:
             * **Windows 10/11 (x64)**: `pikcraft-windows-x86_64.zip`. Unzip it and run `PikCraft.exe`.
             * **Linux (x86_64, glibc 2.34+)**: `pikcraft-linux-x86_64.tar.gz`. Extract it and run `./pikcraft`.
 
-            Already playing v1.2.0 or later? The game finds new releases by itself: press **U** on the
+            Already playing v1.2.1 or later? The game finds new releases by itself: press **U** on the
             title screen or in the pause menu to install one. (The bare `.exe`/binary files are what
             the updater downloads; most players want the zip/tar.gz.)
 
