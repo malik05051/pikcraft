@@ -2,13 +2,74 @@
 
 ## AI Disclosure : This whole game has been vibecoded by Claude Code Opus 5.5.
 
+**Minecraft inside Nintendo's real Pikmin 1.** PikCraft patches your own Pikmin (GameCube) disc
+so every area is rebuilt from grass, dirt, stone, sand, planks, mud and water blocks, and you can
+break and place blocks while Olimar and the Pikmin walk in and out of the holes you dig. You play
+it in [Dolphin](https://dolphin-emu.org).
+
+![The Impact Site rebuilt from blocks](docs/pikmin1-impact-site.jpg)
+
+## Play it
+
+1. Download the patcher for your system from the
+   [Releases page](https://github.com/malik05051/pikcraft/releases): `pikcraft-patcher-windows-x86_64.exe`
+   or `pikcraft-patcher-linux-x86_64`.
+2. Run it with your Pikmin disc image and a name for the new one:
+
+   ```
+   pikcraft-patcher "Pikmin.iso" "PikCraft.iso"
+   ```
+
+   Run it with no arguments and it asks for both. Your original image is never modified.
+3. Open `PikCraft.iso` in Dolphin.
+
+You need your own copy of the game as a plain `.iso`/`.gcm`. If yours is `.rvz` or `.gcz`,
+right-click it in Dolphin, choose **Convert File…** and pick **ISO**. Breaking and placing need
+the PAL disc (GPIP01); NTSC-U (GPIE01) and NTSC-J (GPIJ01) discs get the block terrain without
+them.
+
+## Break and place blocks
+
+| Button | Action |
+| --- | --- |
+| D-pad ◀ | Break the top block under the cursor |
+| D-pad ▶ | Place a block there (the last type you broke; dirt to start with) |
+
+Everything else is Pikmin as usual. A white outline shows which block the cursor is on.
+
+![Aim with the cursor, then break the block](docs/pikmin1-break.jpg)
+
+Holes and new blocks change the ground straight away: Olimar and the Pikmin walk into the holes
+you dig and onto what you build. A one-block step is a slope you can walk up; anything higher is a
+wall. The terrain goes back to normal each day.
+
+![A three-block pillar next to a hole](docs/pikmin1-build.jpg)
+
+## How it works
+
+The patcher reads each area's collision surface and turns it into a block heightmap. On the PAL
+disc it also patches the game's code (built from the
+[projectPiki decompilation](https://github.com/projectPiki/pikmin)), so the game draws the blocks
+itself, takes its collision from them and handles breaking and placing. Enemies, ship parts and
+carrying routes are unchanged, so every area can still be completed.
+
+See [`pikmin1/README.md`](pikmin1/README.md) for all the options and details.
+
+No Nintendo or Mojang files are in this repository or its releases. The patcher only rewrites the
+disc image you give it, the block textures are original pixel art, and the code patch only stores
+differences from your own copy of the game. The screenshots show the mod running in Dolphin.
+
+## The original PikCraft (standalone game)
+
+PikCraft started as a standalone game written in Rust, which is still in this repository (`src/`).
+
 A block-world sandbox crossed with squad-commanding strategy. You mine and build in a
 procedurally generated voxel world, and you lead a squad of little plant creatures,
 **sprouts**, who dig, fight and haul loot for you.
 
 ![Your squad follows you](docs/squad.jpg)
 
-## Goal
+### Goal
 
 Five **Star Shards** are hidden around the world. Each one is too heavy for you to carry,
 so your sprouts have to haul it back to the **Nest**. Follow the compass at the top of the
@@ -24,7 +85,7 @@ Each shard poses a different challenge:
 | Lake island | Only **blue** sprouts can swim (or build a bridge) |
 | Buried vault | Deep under a crystal pillar. Dig down to it |
 
-## Sprouts
+### Sprouts
 
 * **Red**: fire-proof, hit twice as hard.
 * **Yellow**: thrown higher, dig twice as fast.
@@ -44,7 +105,7 @@ Carriers find their own way back to the Nest and dig a tunnel when there's no ot
 
 ![Sprouts digging](docs/digging.jpg)
 
-## Chompers
+### Chompers
 
 Chompers sleep during the day and wake when you get close. At night they all wake up and
 more of them roam. Those night chompers melt at sunrise. If your sprouts carry a defeated
@@ -52,7 +113,7 @@ chomper to the Nest, it grows new sprout seeds in the colour of the sprouts that
 
 ![Fighting a chomper](docs/attack.jpg)
 
-## Controls
+### Controls
 
 | Key | Action |
 |-----|--------|
@@ -72,7 +133,7 @@ chomper to the Nest, it grows new sprout seeds in the colour of the sprouts that
 | U | Install an available update (title screen or pause menu) |
 | Esc | Pause (Q quits from the pause screen) |
 
-### Keyboard layouts
+#### Keyboard layouts
 
 PikCraft supports **QWERTY** and **AZERTY** keyboards. On first launch it guesses from your
 system (a French or Belgian keyboard or locale selects AZERTY). The title screen shows the
@@ -82,7 +143,7 @@ current layout, and you can press **L** there or in game to switch. With AZERTY 
 Your choices for layout, music and sounds are saved to
 `%APPDATA%\PikCraft\settings.txt` (Windows) or `~/.config/PikCraft/settings.txt` (Linux).
 
-## Sound
+### Sound
 
 All sound effects and both music tracks are synthesized in code when the game starts, so
 nothing is loaded from audio files. You'll hear a cheerful day tune and a slower night theme
@@ -91,36 +152,20 @@ and Star Shards each have their own sound, and sounds get quieter the further aw
 
 ![Night with a glow lamp](docs/night.jpg)
 
-## Updates
+### Updates
 
-From v1.2.0 on, PikCraft keeps itself up to date. At startup it asks GitHub in the background
-whether a newer release exists. If one does, the title screen and the pause menu show
-*"Update vX.Y.Z is available - press [U]"*. Press **U** to download it, then **U** again to
-restart into the new version.
+This game has a built-in updater that checks this repository's releases. Those now hold the
+Pikmin 1 patcher, so it no longer finds a newer version of this game.
 
-* The download is checked against the SHA-256 digest that GitHub publishes for the release
-  file. If it doesn't match, nothing is changed.
-* The new executable replaces the old one in place (the old copy is cleaned up on the next
-  start). If the game folder isn't writable, for example under `Program Files`, the game tells
-  you to download the update manually.
-* v1.2.0's updater can't follow GitHub's download redirect, so players on v1.2.0 should
-  download v1.2.1 or later manually once. From v1.2.1 on, in-game updates work end to end.
-* To turn off the check, set `updates = off` in the settings file or start the game with
-  `--no-update-check`. `pikcraft --check-update` prints what the updater sees.
+### Download & run
 
-## Download & run
-
-Download the latest build from the
-[Releases page](https://github.com/malik05051/pikcraft/releases).
-
-* **Windows** (10/11, x64): unzip `pikcraft-windows-x86_64.zip` and run `PikCraft.exe`.
-* **Linux** (x86_64, glibc 2.34+): extract `pikcraft-linux-x86_64.tar.gz` and run `./pikcraft`.
-  You need an OpenGL driver plus `libGL`, `libX11`, `libXi` and `libasound` (ALSA, which also
-  covers PulseAudio and PipeWire). Desktop distros ship all of these.
+There is no prebuilt release of this game any more: build it from source (below). It runs on
+Windows 10/11 (x64) and Linux (x86_64, glibc 2.34+; needs an OpenGL driver plus `libGL`, `libX11`,
+`libXi` and `libasound`).
 
 Command-line options: `--seed N` plays a specific world, and `--version` prints the version.
 
-## Building from source
+### Building from source
 
 Install [Rust](https://rustup.rs), then:
 
@@ -139,7 +184,7 @@ sudo apt install gcc-mingw-w64-x86-64
 cargo build --release --target x86_64-pc-windows-gnu
 ```
 
-### Tests
+#### Tests
 
 ```sh
 cargo test --release                                    # world gen, lighting, path finding, sprout AI, winnability, audio, layouts
@@ -151,7 +196,7 @@ xvfb-run -a ./target/release/pikcraft --selftest out    # scripted play-through,
 checks each step, including that the matching sounds fire. It exits with a non-zero code if
 something fails. CI runs it on both Linux and Windows.
 
-## How it's made
+### How it's made
 
 PikCraft is written in Rust on top of [macroquad](https://macroquad.rs). Every texture,
 model and the window icon is generated in code, so the game ships as one small executable
