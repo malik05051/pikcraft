@@ -1,0 +1,102 @@
+name: Pikmin 1 patcher
+
+on:
+  push:
+    branches: ["**"]
+    paths: ["pikmin1/**", ".github/workflows/patcher.yml"]
+  pull_request:
+    paths: ["pikmin1/**", ".github/workflows/patcher.yml"]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Publish a GitHub release with this tag (e.g. v1.0.0); leave empty to only build"
+        required: false
+        default: ""
+      delete_other_releases:
+        description: "Delete every other release (and its tag) before publishing"
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            name: pikcraft-patcher-linux-x86_64
+          - os: windows-latest
+            name: pikcraft-patcher-windows-x86_64.exe
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: pikmin1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Unit tests
+        run: python -m unittest discover -s tests -t .
+      - name: Build single-file executable
+        run: |
+          pip install pyinstaller==6.11.1
+          pyinstaller --onefile --console --name ${{ matrix.name }} --add-data "pikcraft_patcher/data:pikcraft_patcher/data" pikcraft-patcher.py
+      - name: Smoke test (the block-breaking code patch is bundled)
+        shell: bash
+        run: ./dist/${{ matrix.name }} --version | tee version.txt && grep -q GPIP01_00 version.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: pikmin1/dist/${{ matrix.name }}
+
+  release:
+    if: github.event_name == 'workflow_dispatch' && inputs.release_tag != ''
+    needs: build
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Delete other releases
+        if: inputs.delete_other_releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          KEEP: ${{ inputs.release_tag }}
+        run: |
+          gh release list --limit 200 --json tagName --jq '.[].tagName' | while read -r tag; do
+            echo "Deleting release $tag"
+            gh release delete "$tag" --yes --cleanup-tag
+          done
+          # A stale tag with the new release's name would pin it to an old commit.
+          gh api -X DELETE "repos/$GH_REPO/git/refs/tags/$KEEP" 2>/dev/null || true
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.release_tag }}
+          name: PikCraft ${{ inputs.release_tag }}
+          target_commitish: ${{ github.sha }}
+          files: dist/*
+          make_latest: true
+          body: |
+            **PikCraft: Minecraft-style block worlds inside the real Pikmin 1 (GameCube), played in [Dolphin](https://dolphin-emu.org).**
+
+            The patcher turns your own Pikmin disc image into PikCraft: every area's terrain is rebuilt as grass, dirt, stone, sand, planks, mud and water blocks. Enemies, ship parts and carrying routes are unchanged, so the game plays as normal.
+
+            **Break and place blocks** (PAL disc, GPIP01): aim the cursor and press **D-pad ◀** to break the block under it, **D-pad ▶** to place one. Olimar and the Pikmin walk into the holes you dig and onto what you build. The terrain resets each day.
+            Other versions get the block terrain without breaking.
+
+            ### How to use
+            1. Download the patcher for your system below.
+            2. Run it with your disc image and an output name, or run it with no arguments and it asks for both:
+               - Windows: `pikcraft-patcher-windows-x86_64.exe "Pikmin.iso" "PikCraft.iso"`
+               - Linux: `chmod +x pikcraft-patcher-linux-x86_64 && ./pikcraft-patcher-linux-x86_64 "Pikmin.iso" "PikCraft.iso"`
+            3. Open `PikCraft.iso` in Dolphin.
+
+            Supported: NTSC-U (GPIE01), NTSC-J (GPIJ01) and PAL (GPIP01). Use a plain `.iso`/`.gcm`; to convert an `.rvz`, right-click it in Dolphin, choose **Convert File…** and pick **ISO**. Your original image is never modified.
+
+            No Nintendo or Mojang files are included: the patcher only rewrites the disc you supply, and the block textures are original pixel art.

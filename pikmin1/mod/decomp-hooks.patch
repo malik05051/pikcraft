@@ -1,0 +1,82 @@
+diff --git a/include/Shape.h b/include/Shape.h
+index 719fe62..07b641d 100644
+--- a/include/Shape.h
++++ b/include/Shape.h
+@@ -9,6 +9,7 @@
+ #include "Joint.h"
+ #include "Light.h"
+ #include "Material.h"
++#include "PikCraft.h"
+ #include "Matrix4f.h"
+ #include "Node.h"
+ #include "Route.h"
+@@ -306,6 +307,9 @@ public:
+ 	// DLL inlines:
+ 	CollGroup* getCollTris(immut Vector3f& pos)
+ 	{
++		if (this == PikCraft::sCollShape) {
++			return PikCraft::getCollTris(pos);
++		}
+ 		int x = (pos.x - mCourseExtents.mMin.x) / mGridSize;
+ 		int z = (pos.z - mCourseExtents.mMin.z) / mGridSize;
+ 		if (x < 0 || z < 0 || x >= mGridSizeX || z >= mGridSizeY) {
+diff --git a/src/plugPikiColin/mapMgr.cpp b/src/plugPikiColin/mapMgr.cpp
+index 644c4c6..51455cc 100644
+--- a/src/plugPikiColin/mapMgr.cpp
++++ b/src/plugPikiColin/mapMgr.cpp
+@@ -19,6 +19,7 @@
+ #include "sysMath.h"
+ #include "sysNew.h"
+ #include "timers.h"
++#include "PikCraft.h"
+ 
+ //////////////////////////////////////////////////////
+ //////////////// FORWARD DECLARATIONS ////////////////
+@@ -1225,6 +1226,7 @@ void MapMgr::initShape()
+ 	}
+ 
+ 	mSimulationResetPending = true;
++	PikCraft::init(mMapModel);
+ }
+ 
+ /**
+@@ -1271,6 +1273,7 @@ void MapMgr::updateSimulation()
+  */
+ void MapMgr::update()
+ {
++	PikCraft::update();
+ 	updateSimulation();
+ 	mWorldSimulator->InitRender();
+ 
+@@ -1429,6 +1432,9 @@ void MapMgr::refresh(Graphics& gfx)
+ 	// draw only visible joints of the model to optimise performance
+ 	mMapModel->drawculled(gfx, *gfx.mCamera, &mAnimatedMaterials);
+ 
++	// PikCraft block terrain
++	PikCraft::draw(gfx);
++
+ 	// reset environment - allow everything except shadows
+ 	gfx.mMatRenderMask = (MATFLAG_Opaque | MATFLAG_AlphaTest | MATFLAG_AlphaBlend);
+ 	gfx.mHasTexGen     = FALSE;
+@@ -2437,3 +2443,5 @@ void ShadowCaster::initShadow()
+ }
+ 
+ //////////////////////////////////////////////////////
++
++#include "../src/plugPikiColin/pikcraft.inl"
+diff --git a/src/sysCommon/shapeBase.cpp b/src/sysCommon/shapeBase.cpp
+index 11f8b2c..85ca2bc 100644
+--- a/src/sysCommon/shapeBase.cpp
++++ b/src/sysCommon/shapeBase.cpp
+@@ -2656,6 +2656,11 @@ void BaseShape::read(RandomAccessStream& stream)
+ 			stream.skipPadding(0x20);
+ 			break;
+ 		}
++		case PikCraft::ChunkID:
++		{
++			PikCraft::readChunk(this, stream, chunkLength);
++			break;
++		}
+ 		default:
+ 		{
+ 			skipChunk(stream, chunkLength);
