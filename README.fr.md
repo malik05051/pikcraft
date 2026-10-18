@@ -2,7 +2,7 @@
 
 [English](README.md) | **Français**
 
-## Avertissement sur l'IA : ce jeu a été entièrement codé par Claude Code Opus 5.5.
+## Utilisation de l'IA : Ce jeu a été entièrement codé par Claude Code Opus 5.5.
 
 **Minecraft dans le vrai Pikmin 1 de Nintendo.** PikCraft modifie votre propre disque de Pikmin
 (GameCube) : chaque zone est reconstruite en blocs d'herbe, de terre, de pierre, de sable, de
