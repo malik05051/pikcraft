@@ -100,3 +100,23 @@ jobs:
             Supported: NTSC-U (GPIE01), NTSC-J (GPIJ01) and PAL (GPIP01). Use a plain `.iso`/`.gcm`; to convert an `.rvz`, right-click it in Dolphin, choose **Convert File…** and pick **ISO**. Your original image is never modified.
 
             No Nintendo or Mojang files are included: the patcher only rewrites the disc you supply, and the block textures are original pixel art.
+
+            ---
+
+            ### En français
+
+            **PikCraft : des mondes en blocs façon Minecraft dans le vrai Pikmin 1 (GameCube), à jouer dans [Dolphin](https://fr.dolphin-emu.org).**
+
+            Le patcher transforme votre propre image disque de Pikmin en PikCraft : le terrain de chaque zone est reconstruit en blocs d'herbe, de terre, de pierre, de sable, de planches, de boue et d'eau. Les ennemis, les pièces du vaisseau et les trajets de transport ne changent pas : le jeu se joue normalement.
+
+            **Casser et poser des blocs** (disque PAL, GPIP01) : visez avec le curseur, **croix ◀** casse le bloc, **croix ▶** en pose un. Olimar et les Pikmin descendent dans les trous et montent sur ce que vous construisez. Le terrain revient à son état d'origine chaque jour. Les autres versions ont le terrain en blocs, sans cassage.
+
+            1. Téléchargez le patcher pour votre système ci-dessous.
+            2. Lancez-le avec votre image disque et un nom de sortie (ou sans arguments, il vous les demande) :
+               - Windows : `pikcraft-patcher-windows-x86_64.exe "Pikmin.iso" "PikCraft.iso"`
+               - Linux : `chmod +x pikcraft-patcher-linux-x86_64 && ./pikcraft-patcher-linux-x86_64 "Pikmin.iso" "PikCraft.iso"`
+            3. Ouvrez `PikCraft.iso` dans Dolphin.
+
+            Pour jouer en français : disque PAL, et **Config > GameCube > Langue du système : Français** dans Dolphin (ou **Options** sur l'écran titre du jeu). Le patcher parle français si votre système est en français (`--lang fr` pour le forcer).
+
+            Aucun fichier de Nintendo ou de Mojang n'est inclus : le patcher ne fait que réécrire le disque que vous fournissez, et les textures des blocs sont du pixel art original.

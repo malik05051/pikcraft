@@ -12,6 +12,8 @@ import shutil
 import struct
 from dataclasses import dataclass
 
+from .i18n import tr
+
 MAGIC_OFFSET = 0x1C
 GC_MAGIC = 0xC2339F3D
 DOL_OFFSET_FIELD = 0x420
@@ -43,10 +45,7 @@ class GameCubeDisc:
         header = self._f.read(0x440)
         if len(header) < 0x440 or _u32(header, MAGIC_OFFSET) != GC_MAGIC:
             self._f.close()
-            raise DiscError(
-                f"{path} is not a GameCube disc image. Use a plain .iso/.gcm "
-                "(in Dolphin: right-click the game > Convert File > ISO)."
-            )
+            raise DiscError(tr("not_gamecube", path=path))
         self.header = header
         self.game_id = header[0:6].decode("ascii", "replace")
         self.revision = header[7]
@@ -104,7 +103,7 @@ class GameCubeDisc:
     def find(self, path: str) -> FstFile:
         f = self.files.get(path.lower().lstrip("/"))
         if not f:
-            raise DiscError(f"{path} is not on the disc")
+            raise DiscError(tr("not_on_disc", path=path))
         return f
 
     def read(self, path: str) -> bytes:
@@ -147,7 +146,7 @@ def write_patched(
         dol_offset = disc.dol_offset
         old_dol_size = len(disc.read_dol())
     if os.path.abspath(src_path) == os.path.abspath(dst_path):
-        raise DiscError("refusing to overwrite the original disc image")
+        raise DiscError(tr("refuse_overwrite"))
     shutil.copyfile(src_path, dst_path)
     with open(dst_path, "r+b") as out:
         out.seek(0, os.SEEK_END)

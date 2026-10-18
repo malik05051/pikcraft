@@ -16,8 +16,9 @@ import struct
 import sys
 import time
 
-from . import dolpatch, gcdisc, mapbuild
+from . import dolpatch, gcdisc, i18n, mapbuild
 from . import modfile as mf
+from .i18n import tr
 
 __version__ = "1.0.0"
 
@@ -74,51 +75,68 @@ def find_maps(disc: gcdisc.GameCubeDisc) -> list[str]:
     return maps
 
 
+def _error(message: str) -> int:
+    print(tr("error", message=message), file=sys.stderr)
+    return 1
+
+
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(prog="pikcraft-patcher", description=__doc__.split("\n\n")[0])
-    ap.add_argument("source", nargs="?", help="your Pikmin disc image (.iso / .gcm)")
-    ap.add_argument("output", nargs="?", help="where to write PikCraft (a new .iso)")
-    ap.add_argument("--block-size", type=float, default=DEFAULT_BLOCK, help="block size in map units (default %(default)s)")
-    ap.add_argument("--keep-original", action="store_true", help="draw the original terrain under the blocks (terrain-only mode)")
-    ap.add_argument("--terrain-only", action="store_true", help="don't patch the game code: blocks can't be broken or placed")
-    ap.add_argument("--only", action="append", default=[], help="only convert maps whose path contains this text")
-    ap.add_argument("--list", action="store_true", help="list the map models found and exit")
-    ap.add_argument("--version", action="version", version=f"%(prog)s {__version__} (block breaking: {', '.join(code_versions()) or 'none'})")
+    # The language has to be known before the help text is built.
+    pre = argparse.ArgumentParser(add_help=False)
+    pre.add_argument("--lang")
+    lang = pre.parse_known_args(argv)[0].lang
+    i18n.set_language(lang if lang in i18n.LANGUAGES else i18n.detect())
+    argparse._ = i18n.gettext  # argparse's own words ("usage:", "options", ...)
+
+    ap = argparse.ArgumentParser(prog="pikcraft-patcher", description=tr("description"), add_help=False)
+    ap.add_argument("source", nargs="?", help=tr("help_source"))
+    ap.add_argument("output", nargs="?", help=tr("help_output"))
+    ap.add_argument("-h", "--help", action="help", help=tr("help_help"))
+    ap.add_argument("--block-size", type=float, default=DEFAULT_BLOCK, help=tr("help_block_size"))
+    ap.add_argument("--keep-original", action="store_true", help=tr("help_keep_original"))
+    ap.add_argument("--terrain-only", action="store_true", help=tr("help_terrain_only"))
+    ap.add_argument("--only", action="append", default=[], help=tr("help_only"))
+    ap.add_argument("--list", action="store_true", help=tr("help_list"))
+    ap.add_argument("--lang", choices=i18n.LANGUAGES, help=tr("help_lang"))
+    ap.add_argument(
+        "--version",
+        action="version",
+        version=tr("version", version=__version__, versions=", ".join(code_versions()) or tr("none")),
+        help=tr("help_version"),
+    )
     args = ap.parse_args(argv)
 
     if not args.source:
-        args.source = input("Path to your Pikmin disc image: ").strip().strip('"')
+        args.source = input(tr("prompt_source")).strip().strip('"')
     try:
         disc = gcdisc.GameCubeDisc(args.source)
+    except FileNotFoundError:
+        return _error(tr("file_not_found", path=args.source))
     except (OSError, gcdisc.DiscError) as e:
-        print(f"error: {e}", file=sys.stderr)
-        return 1
+        return _error(str(e))
     with disc:
         print(f"{disc.title} [{disc.version_tag}]")
         if disc.game_id not in SUPPORTED:
-            print(f"error: {disc.game_id} is not Pikmin (expected one of {', '.join(sorted(SUPPORTED))})", file=sys.stderr)
-            return 1
+            return _error(tr("not_pikmin", game_id=disc.game_id, expected=", ".join(sorted(SUPPORTED))))
         maps = [m for m in find_maps(disc) if not args.only or any(o.lower() in m.lower() for o in args.only)]
         if args.list or not maps:
             for m in maps:
                 print(" ", m)
             if not maps:
-                print("error: no map models found on this disc", file=sys.stderr)
-                return 1
+                return _error(tr("no_maps"))
             return 0
         if not args.output:
-            args.output = input("Where to save PikCraft (.iso): ").strip().strip('"')
+            args.output = input(tr("prompt_output")).strip().strip('"')
         code = None if args.terrain_only or args.keep_original else code_patch(disc)
         new_dol = None
         if code:
             try:
                 new_dol = dolpatch.apply(*code)
             except dolpatch.PatchError as e:
-                print(f"error: {e}", file=sys.stderr)
-                return 1
-            print("Mode: full (break blocks with D-pad left, place with D-pad right)")
+                return _error(str(e))
+            print(tr("mode_full"))
         else:
-            print("Mode: terrain only (block breaking needs the PAL disc, GPIP01 revision 0)")
+            print(tr("mode_terrain"))
         replacements = {}
         for path in maps:
             t = time.time()
@@ -129,23 +147,29 @@ def main(argv: list[str] | None = None) -> int:
                 else:
                     out, rep = mapbuild.build(data, args.block_size, args.keep_original)
             except (mapbuild.BuildError, mf.ModError, struct.error, IndexError, ValueError) as e:
-                print(f"  {path}: skipped ({e})")
+                print(tr("skipped", path=path, reason=e))
                 continue
             replacements[path] = out
-            faces = f"{rep.quads} faces, " if not new_dol else ""
+            faces = tr("faces", count=rep.quads) if not new_dol else ""
             print(
-                f"  {path}: {rep.columns} columns, {faces}block {rep.block_size:g}, "
-                f"{len(data) // 1024} -> {len(out) // 1024} KiB ({time.time() - t:.1f}s)"
+                tr(
+                    "map_done",
+                    path=path,
+                    columns=rep.columns,
+                    faces=faces,
+                    block=i18n.number(rep.block_size, 0),
+                    before=len(data) // 1024,
+                    after=len(out) // 1024,
+                    seconds=i18n.number(time.time() - t),
+                )
             )
     if not replacements:
-        print("error: no maps could be converted", file=sys.stderr)
-        return 1
+        return _error(tr("nothing_converted"))
     try:
         gcdisc.write_patched(args.source, args.output, replacements, dol=new_dol)
     except (OSError, gcdisc.DiscError) as e:
-        print(f"error: {e}", file=sys.stderr)
-        return 1
-    print(f"Done: {args.output}  (open it in Dolphin)")
+        return _error(str(e))
+    print(tr("done", output=args.output))
     return 0
 
 

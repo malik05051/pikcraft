@@ -84,7 +84,7 @@ class DolPatchTests(unittest.TestCase):
             old_dir, cli.PATCH_DIR = cli.PATCH_DIR, patch_dir
             try:
                 with redirect_stdout(io.StringIO()) as out:
-                    self.assertEqual(cli.main([src, dst]), 0)
+                    self.assertEqual(cli.main(["--lang", "en", src, dst]), 0)
             finally:
                 cli.PATCH_DIR = old_dir
             self.assertIn("Mode: full", out.getvalue())
