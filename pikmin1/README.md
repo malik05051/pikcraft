@@ -1,5 +1,7 @@
 # PikCraft for Pikmin 1 (GameCube)
 
+**English** | [Français](README.fr.md)
+
 PikCraft running inside Nintendo's real Pikmin 1 engine. The patcher rebuilds each level's map
 model as Minecraft-style blocks and writes a new disc image you play in [Dolphin](https://dolphin-emu.org).
 
@@ -51,6 +53,10 @@ Run it without arguments to be asked for the paths. Your original image is never
 | `--list` | List the map models found and exit. |
 | `--terrain-only` | Don't patch the game code (no breaking or placing). |
 | `--keep-original` | Terrain-only mode, also drawing the original terrain for comparison. |
+| `--lang fr` / `--lang en` | Language of the patcher's messages (default: your system's language). |
+
+To play in French, use the PAL disc and set Dolphin's **Config > GameCube > System Language** to
+**French**, or change the language in **Options** on the game's title screen.
 
 From source (Python 3.10+, no dependencies): `python -m pikcraft_patcher …`; tests:
 `python -m unittest discover -s tests -t .`
@@ -78,5 +84,6 @@ useless without it; `mod/build_dolpatch.sh` rebuilds it from the
 - `mod/PikCraft.h` and `mod/pikcraft.inl` are the game code: block rendering with GX, heightmap
   collision behind `BaseShape::getCollTris`, breaking and placing. `mod/decomp-hooks.patch` holds
   the few lines that hook them into the game.
+- `pikcraft_patcher/i18n.py` holds the patcher's messages in English and French.
 - `pikcraft_patcher/textures.py` holds the procedural block textures and the GameCube RGB565/RGB5A3
   encoders.

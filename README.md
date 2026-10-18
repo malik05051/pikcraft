@@ -1,5 +1,7 @@
 # PikCraft
 
+**English** | [Français](README.fr.md)
+
 ## AI Disclosure : This whole game has been vibecoded by Claude Code Opus 5.5.
 
 **Minecraft inside Nintendo's real Pikmin 1.** PikCraft patches your own Pikmin (GameCube) disc
@@ -45,6 +47,15 @@ wall. The terrain goes back to normal each day.
 
 ![A three-block pillar next to a hole](docs/pikmin1-build.jpg)
 
+## Playing in French
+
+- **The game:** the PAL disc (GPIP01) includes French. The game uses the console's language: in
+  Dolphin, go to **Config > GameCube > System Language** and pick **French**. If you already have a
+  save, change the language in **Options** on the game's title screen. NTSC-U and NTSC-J discs are
+  English or Japanese only.
+- **The patcher** speaks French when your system is set to French. Use `--lang fr` or `--lang en`
+  to choose.
+
 ## How it works
 
 The patcher reads each area's collision surface and turns it into a block heightmap. On the PAL
@@ -53,7 +64,8 @@ disc it also patches the game's code (built from the
 itself, takes its collision from them and handles breaking and placing. Enemies, ship parts and
 carrying routes are unchanged, so every area can still be completed.
 
-See [`pikmin1/README.md`](pikmin1/README.md) for all the options and details.
+See [`pikmin1/README.md`](pikmin1/README.md) for all the options and details
+([en français](pikmin1/README.fr.md)).
 
 No Nintendo or Mojang files are in this repository or its releases. The patcher only rewrites the
 disc image you give it, the block textures are original pixel art, and the code patch only stores

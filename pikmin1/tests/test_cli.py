@@ -26,7 +26,7 @@ class CliTests(unittest.TestCase):
             with open(src, "wb") as f:
                 f.write(make_disc(files))
             with redirect_stdout(io.StringIO()):
-                self.assertEqual(cli.main([src, dst]), 0)
+                self.assertEqual(cli.main(["--lang", "en", src, dst]), 0)
             with gcdisc.GameCubeDisc(dst) as disc:
                 out = mf.ModFile.parse(disc.read("dataDir/courses/dolphin/dolphin.mod"))
                 self.assertEqual(disc.read("dataDir/shapes/arrow.mod"), b"not touched")

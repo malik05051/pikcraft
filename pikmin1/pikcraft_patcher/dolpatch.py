@@ -18,6 +18,8 @@ import hashlib
 import struct
 import zlib
 
+from .i18n import tr
+
 MAGIC = b"PCDP"
 VERSION = 2
 HEADER = struct.Struct(">4sI20s20sIIII")  # magic, version, src sha1, dst sha1, dst size, 3 stream sizes (the last unused)
@@ -112,29 +114,29 @@ def source_sha1(patch: bytes) -> str:
 def apply(src_bytes: bytes, patch: bytes) -> bytes:
     magic, version, src_sha, dst_sha, size, n_ops, n_diffs, n_ins = HEADER.unpack_from(patch)
     if magic != MAGIC or version != VERSION:
-        raise PatchError("not a PikCraft executable patch")
+        raise PatchError(tr("not_a_patch"))
     if hashlib.sha1(src_bytes).digest() != src_sha:
-        raise PatchError("this patch is for a different version of the game")
+        raise PatchError(tr("wrong_version"))
     p = HEADER.size
     ops = zlib.decompress(patch[p : p + n_ops])
     diffs = zlib.decompress(patch[p + n_ops : p + n_ops + n_diffs])
     inserts = zlib.decompress(patch[p + n_ops + n_diffs : p + n_ops + n_diffs + n_ins])
 
     if inserts:
-        raise PatchError("corrupt patch")
+        raise PatchError(tr("corrupt_patch"))
     src = _words(src_bytes)
     out: list[int] = []
     di = 0
     for i in range(0, len(ops), 8):
         s, n = struct.unpack_from(">II", ops, i)
         if s + n > len(src):
-            raise PatchError("corrupt patch")
+            raise PatchError(tr("corrupt_patch"))
         d = struct.unpack_from(">%dI" % n, diffs, di)
         out.extend((src[s + j] + d[j]) & 0xFFFFFFFF for j in range(n))
         di += 4 * n
     result = struct.pack(">%dI" % len(out), *out)[:size]
     if hashlib.sha1(result).digest() != dst_sha:
-        raise PatchError("patched executable failed its checksum")
+        raise PatchError(tr("bad_checksum"))
     return result
 
 
