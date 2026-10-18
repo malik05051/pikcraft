@@ -1,0 +1,31 @@
+{
+	"schemaVersion": 1,
+	"id": "pikcraft",
+	"version": "${version}",
+	"name": "PikCraft",
+	"description": "Pikmin in Minecraft: seven Pikmin types, Onions, pellets, nectar, a whistle, and enemies carried home.",
+	"authors": ["malik05051"],
+	"contact": {
+		"sources": "https://github.com/malik05051/pikcraft"
+	},
+	"license": "MIT",
+	"icon": "assets/pikcraft/icon.png",
+	"environment": "*",
+	"accessWidener": "pikcraft.classtweaker",
+	"mixins": [
+		{
+			"config": "pikcraft.client.mixins.json",
+			"environment": "client"
+		}
+	],
+	"entrypoints": {
+		"main": ["io.github.malik05051.pikcraft.PikCraft"],
+		"client": ["io.github.malik05051.pikcraft.client.PikCraftClient"]
+	},
+	"depends": {
+		"fabricloader": ">=0.19.5",
+		"minecraft": "~26.3",
+		"java": ">=25",
+		"fabric-api": "*"
+	}
+}

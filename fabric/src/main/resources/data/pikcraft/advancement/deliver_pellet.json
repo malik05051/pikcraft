@@ -1,0 +1,28 @@
+{
+  "parent": "pikcraft:pluck",
+  "criteria": {
+    "deliver_pellet": {
+      "trigger": "pikcraft:event",
+      "conditions": {
+        "event": "deliver_pellet"
+      }
+    }
+  },
+  "display": {
+    "icon": {
+      "id": "pikcraft:pellet_posy_spawn_egg"
+    },
+    "title": {
+      "translate": "advancements.pikcraft.deliver_pellet.title"
+    },
+    "description": {
+      "translate": "advancements.pikcraft.deliver_pellet.description"
+    },
+    "frame": "task"
+  },
+  "requirements": [
+    [
+      "deliver_pellet"
+    ]
+  ]
+}

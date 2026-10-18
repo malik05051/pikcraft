@@ -1,0 +1,28 @@
+{
+  "parent": "pikcraft:throw",
+  "criteria": {
+    "deliver_corpse": {
+      "trigger": "pikcraft:event",
+      "conditions": {
+        "event": "deliver_corpse"
+      }
+    }
+  },
+  "display": {
+    "icon": {
+      "id": "minecraft:rotten_flesh"
+    },
+    "title": {
+      "translate": "advancements.pikcraft.deliver_corpse.title"
+    },
+    "description": {
+      "translate": "advancements.pikcraft.deliver_corpse.description"
+    },
+    "frame": "task"
+  },
+  "requirements": [
+    [
+      "deliver_corpse"
+    ]
+  ]
+}

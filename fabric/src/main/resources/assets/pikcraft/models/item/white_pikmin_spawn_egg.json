@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "pikcraft:item/white_pikmin_spawn_egg"
+  }
+}

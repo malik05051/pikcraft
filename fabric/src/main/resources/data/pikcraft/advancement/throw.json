@@ -1,0 +1,28 @@
+{
+  "parent": "pikcraft:pluck",
+  "criteria": {
+    "throw": {
+      "trigger": "pikcraft:event",
+      "conditions": {
+        "event": "throw"
+      }
+    }
+  },
+  "display": {
+    "icon": {
+      "id": "pikcraft:yellow_pikmin_spawn_egg"
+    },
+    "title": {
+      "translate": "advancements.pikcraft.throw.title"
+    },
+    "description": {
+      "translate": "advancements.pikcraft.throw.description"
+    },
+    "frame": "task"
+  },
+  "requirements": [
+    [
+      "throw"
+    ]
+  ]
+}

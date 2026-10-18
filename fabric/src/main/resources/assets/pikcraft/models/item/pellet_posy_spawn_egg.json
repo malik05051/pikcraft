@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "pikcraft:item/pellet_posy_spawn_egg"
+  }
+}

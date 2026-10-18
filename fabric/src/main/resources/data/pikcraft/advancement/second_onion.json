@@ -1,0 +1,28 @@
+{
+  "parent": "pikcraft:onion_follow",
+  "criteria": {
+    "second_onion": {
+      "trigger": "pikcraft:event",
+      "conditions": {
+        "event": "second_onion"
+      }
+    }
+  },
+  "display": {
+    "icon": {
+      "id": "pikcraft:onion_spawn_egg"
+    },
+    "title": {
+      "translate": "advancements.pikcraft.second_onion.title"
+    },
+    "description": {
+      "translate": "advancements.pikcraft.second_onion.description"
+    },
+    "frame": "goal"
+  },
+  "requirements": [
+    [
+      "second_onion"
+    ]
+  ]
+}

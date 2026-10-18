@@ -1,0 +1,28 @@
+{
+  "parent": "pikcraft:awaken_onion",
+  "criteria": {
+    "onion_follow": {
+      "trigger": "pikcraft:event",
+      "conditions": {
+        "event": "onion_follow"
+      }
+    }
+  },
+  "display": {
+    "icon": {
+      "id": "minecraft:lead"
+    },
+    "title": {
+      "translate": "advancements.pikcraft.onion_follow.title"
+    },
+    "description": {
+      "translate": "advancements.pikcraft.onion_follow.description"
+    },
+    "frame": "task"
+  },
+  "requirements": [
+    [
+      "onion_follow"
+    ]
+  ]
+}

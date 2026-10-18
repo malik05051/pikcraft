@@ -1,0 +1,28 @@
+{
+  "parent": "pikcraft:pluck",
+  "criteria": {
+    "whistle": {
+      "trigger": "pikcraft:event",
+      "conditions": {
+        "event": "whistle"
+      }
+    }
+  },
+  "display": {
+    "icon": {
+      "id": "pikcraft:whistle"
+    },
+    "title": {
+      "translate": "advancements.pikcraft.whistle.title"
+    },
+    "description": {
+      "translate": "advancements.pikcraft.whistle.description"
+    },
+    "frame": "task"
+  },
+  "requirements": [
+    [
+      "whistle"
+    ]
+  ]
+}

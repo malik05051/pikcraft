@@ -1,0 +1,4 @@
+classTweaker	v1	official
+
+# monsters also hunt Pikmin
+accessible	field	net/minecraft/world/entity/Mob	targetSelector	Lnet/minecraft/world/entity/ai/goal/GoalSelector;

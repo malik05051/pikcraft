@@ -1,0 +1,11 @@
+{
+	"required": true,
+	"package": "io.github.malik05051.pikcraft.client.mixin",
+	"compatibilityLevel": "JAVA_25",
+	"client": [
+		"CameraMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	}
+}

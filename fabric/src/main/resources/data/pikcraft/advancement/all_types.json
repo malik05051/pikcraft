@@ -1,0 +1,82 @@
+{
+  "parent": "pikcraft:second_onion",
+  "criteria": {
+    "pikmin_red": {
+      "trigger": "pikcraft:event",
+      "conditions": {
+        "event": "pikmin_red"
+      }
+    },
+    "pikmin_yellow": {
+      "trigger": "pikcraft:event",
+      "conditions": {
+        "event": "pikmin_yellow"
+      }
+    },
+    "pikmin_blue": {
+      "trigger": "pikcraft:event",
+      "conditions": {
+        "event": "pikmin_blue"
+      }
+    },
+    "pikmin_rock": {
+      "trigger": "pikcraft:event",
+      "conditions": {
+        "event": "pikmin_rock"
+      }
+    },
+    "pikmin_winged": {
+      "trigger": "pikcraft:event",
+      "conditions": {
+        "event": "pikmin_winged"
+      }
+    },
+    "pikmin_purple": {
+      "trigger": "pikcraft:event",
+      "conditions": {
+        "event": "pikmin_purple"
+      }
+    },
+    "pikmin_white": {
+      "trigger": "pikcraft:event",
+      "conditions": {
+        "event": "pikmin_white"
+      }
+    }
+  },
+  "display": {
+    "icon": {
+      "id": "pikcraft:white_pikmin_spawn_egg"
+    },
+    "title": {
+      "translate": "advancements.pikcraft.all_types.title"
+    },
+    "description": {
+      "translate": "advancements.pikcraft.all_types.description"
+    },
+    "frame": "challenge"
+  },
+  "requirements": [
+    [
+      "pikmin_red"
+    ],
+    [
+      "pikmin_yellow"
+    ],
+    [
+      "pikmin_blue"
+    ],
+    [
+      "pikmin_rock"
+    ],
+    [
+      "pikmin_winged"
+    ],
+    [
+      "pikmin_purple"
+    ],
+    [
+      "pikmin_white"
+    ]
+  ]
+}
