@@ -1,0 +1,28 @@
+{
+  "parent": "pikcraft:awaken_onion",
+  "criteria": {
+    "pluck": {
+      "trigger": "pikcraft:event",
+      "conditions": {
+        "event": "pluck"
+      }
+    }
+  },
+  "display": {
+    "icon": {
+      "id": "pikcraft:red_pikmin_spawn_egg"
+    },
+    "title": {
+      "translate": "advancements.pikcraft.pluck.title"
+    },
+    "description": {
+      "translate": "advancements.pikcraft.pluck.description"
+    },
+    "frame": "task"
+  },
+  "requirements": [
+    [
+      "pluck"
+    ]
+  ]
+}

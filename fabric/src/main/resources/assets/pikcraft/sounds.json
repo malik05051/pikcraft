@@ -1,0 +1,92 @@
+{
+  "whistle": {
+    "subtitle": "subtitles.pikcraft.whistle",
+    "sounds": [
+      "pikcraft:whistle"
+    ]
+  },
+  "pikmin.pluck": {
+    "subtitle": "subtitles.pikcraft.pikmin.pluck",
+    "sounds": [
+      "pikcraft:pikmin/pluck"
+    ]
+  },
+  "pikmin.throw": {
+    "subtitle": "subtitles.pikcraft.pikmin.throw",
+    "sounds": [
+      "pikcraft:pikmin/throw"
+    ]
+  },
+  "pikmin.hey": {
+    "subtitle": "subtitles.pikcraft.pikmin.hey",
+    "sounds": [
+      "pikcraft:pikmin/hey"
+    ]
+  },
+  "pikmin.attack": {
+    "subtitle": "subtitles.pikcraft.pikmin.attack",
+    "sounds": [
+      "pikcraft:pikmin/attack"
+    ]
+  },
+  "pikmin.die": {
+    "subtitle": "subtitles.pikcraft.pikmin.die",
+    "sounds": [
+      "pikcraft:pikmin/die"
+    ]
+  },
+  "pikmin.carry": {
+    "subtitle": "subtitles.pikcraft.pikmin.carry",
+    "sounds": [
+      "pikcraft:pikmin/carry"
+    ]
+  },
+  "pikmin.drink": {
+    "subtitle": "subtitles.pikcraft.pikmin.drink",
+    "sounds": [
+      "pikcraft:pikmin/drink"
+    ]
+  },
+  "onion.awaken": {
+    "subtitle": "subtitles.pikcraft.onion.awaken",
+    "sounds": [
+      "pikcraft:onion/awaken"
+    ]
+  },
+  "onion.seed": {
+    "subtitle": "subtitles.pikcraft.onion.seed",
+    "sounds": [
+      "pikcraft:onion/seed"
+    ]
+  },
+  "onion.suck": {
+    "subtitle": "subtitles.pikcraft.onion.suck",
+    "sounds": [
+      "pikcraft:onion/suck"
+    ]
+  },
+  "onion.fly": {
+    "subtitle": "subtitles.pikcraft.onion.fly",
+    "sounds": [
+      "pikcraft:onion/fly"
+    ]
+  },
+  "posy.hit": {
+    "subtitle": "subtitles.pikcraft.posy.hit",
+    "sounds": [
+      "pikcraft:posy/hit"
+    ]
+  },
+  "pellet.drop": {
+    "subtitle": "subtitles.pikcraft.pellet.drop",
+    "sounds": [
+      "pikcraft:pellet/drop"
+    ]
+  },
+  "egg.break": {
+    "subtitle": "subtitles.pikcraft.egg.break",
+    "sounds": [
+      "pikcraft:egg/break"
+    ]
+  }
+}

@@ -1,0 +1,72 @@
+name: Minecraft mod
+
+on:
+  push:
+    branches: ["**"]
+    paths: ["fabric/**", ".github/workflows/fabric.yml"]
+  pull_request:
+    paths: ["fabric/**", ".github/workflows/fabric.yml"]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Publish a GitHub release of the mod with this tag (e.g. mod-v1.0.0); leave empty to only build"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: fabric
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build and run the server game test
+        run: ./gradlew build --no-configuration-cache
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pikcraft-mod
+          path: fabric/build/libs/pikcraft-*.jar
+
+  release:
+    if: github.event_name == 'workflow_dispatch' && inputs.release_tag != ''
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: pikcraft-mod
+          path: dist
+      - name: Keep only the mod jar
+        run: rm -f dist/*-sources.jar
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.release_tag }}
+          name: PikCraft for Minecraft ${{ inputs.release_tag }}
+          target_commitish: ${{ github.sha }}
+          files: dist/*.jar
+          make_latest: false
+          body: |
+            **PikCraft for Minecraft: Pikmin in Minecraft Java Edition 26.3 (Fabric).**
+
+            Seven Pikmin types, a sleeping Onion to find and wake, a whistle (3 iron + 1 copper), pellet posies, nectar eggs, enemies carried home, a health wheel and Pikmin-style menus. Works in normal multiplayer (install it on the server and every client) and with Essential's hosted worlds.
+
+            Install Fabric Loader 0.19.5+ and Fabric API for Minecraft 26.3, then put the jar in `mods`. Controls: R throw, hold V whistle, C charge, X dismiss, G next type. See the [mod's README](https://github.com/${{ github.repository }}/blob/main/fabric/README.md).
+
+            ---
+
+            **PikCraft pour Minecraft : des Pikmin dans Minecraft Java Edition 26.3 (Fabric).**
+
+            Sept types de Pikmin, un Oignon endormi à trouver et réveiller, un sifflet (3 fer + 1 cuivre), des fleurs à pastille, des œufs de nectar, des ennemis rapportés, une roue de vie et des menus façon Pikmin. Marche en multijoueur normal (mod sur le serveur et chez chaque joueur) et avec les mondes hébergés d'Essential.
+
+            Installe Fabric Loader 0.19.5+ et Fabric API pour Minecraft 26.3, puis mets le jar dans `mods`. Commandes : R lancer, V (maintenir) siffler, C charger, X disperser, G type suivant. Voir le [README du mod](https://github.com/${{ github.repository }}/blob/main/fabric/README.fr.md).
+
+            No Nintendo or Mojang assets are included: textures and sounds are original. / Aucun fichier de Nintendo ou de Mojang n'est inclus.

@@ -12,6 +12,13 @@ Pikmin descendent dans les trous que vous creusez. On y joue dans
 
 ![Le Site du Crash reconstruit en blocs](docs/pikmin1-impact-site.jpg)
 
+## Nouveau : PikCraft pour Minecraft (mod Fabric)
+
+Des Pikmin dans Minecraft Java Edition 26.3 : sept types de Pikmin, des Oignons, un sifflet, des
+fleurs à pastille, du nectar et des ennemis rapportés. Voir [`fabric/README.fr.md`](fabric/README.fr.md).
+
+![Des Pikmin dans Minecraft](docs/fabric-squad.jpg)
+
 ## Jouer
 
 1. Téléchargez le patcher pour votre système sur la

@@ -11,6 +11,13 @@ it in [Dolphin](https://dolphin-emu.org).
 
 ![The Impact Site rebuilt from blocks](docs/pikmin1-impact-site.jpg)
 
+## New: PikCraft for Minecraft (Fabric mod)
+
+Pikmin in Minecraft Java Edition 26.3: seven Pikmin types, Onions, a whistle, pellet posies,
+nectar and enemies carried home. See [`fabric/README.md`](fabric/README.md).
+
+![Pikmin in Minecraft](docs/fabric-squad.jpg)
+
 ## Play it
 
 1. Download the patcher for your system from the

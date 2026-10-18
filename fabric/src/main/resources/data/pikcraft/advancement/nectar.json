@@ -1,0 +1,28 @@
+{
+  "parent": "pikcraft:pluck",
+  "criteria": {
+    "nectar": {
+      "trigger": "pikcraft:event",
+      "conditions": {
+        "event": "nectar"
+      }
+    }
+  },
+  "display": {
+    "icon": {
+      "id": "pikcraft:nectar_egg_spawn_egg"
+    },
+    "title": {
+      "translate": "advancements.pikcraft.nectar.title"
+    },
+    "description": {
+      "translate": "advancements.pikcraft.nectar.description"
+    },
+    "frame": "task"
+  },
+  "requirements": [
+    [
+      "nectar"
+    ]
+  ]
+}

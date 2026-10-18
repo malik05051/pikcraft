@@ -1,0 +1,28 @@
+{
+  "parent": "pikcraft:throw",
+  "criteria": {
+    "charge": {
+      "trigger": "pikcraft:event",
+      "conditions": {
+        "event": "charge"
+      }
+    }
+  },
+  "display": {
+    "icon": {
+      "id": "minecraft:iron_sword"
+    },
+    "title": {
+      "translate": "advancements.pikcraft.charge.title"
+    },
+    "description": {
+      "translate": "advancements.pikcraft.charge.description"
+    },
+    "frame": "task"
+  },
+  "requirements": [
+    [
+      "charge"
+    ]
+  ]
+}

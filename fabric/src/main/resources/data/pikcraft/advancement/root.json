@@ -1,0 +1,26 @@
+{
+  "criteria": {
+    "tick": {
+      "trigger": "minecraft:tick"
+    }
+  },
+  "display": {
+    "icon": {
+      "id": "pikcraft:whistle"
+    },
+    "title": {
+      "translate": "advancements.pikcraft.root.title"
+    },
+    "description": {
+      "translate": "advancements.pikcraft.root.description"
+    },
+    "background": "minecraft:gui/advancements/backgrounds/husbandry",
+    "show_toast": false,
+    "announce_to_chat": false
+  },
+  "requirements": [
+    [
+      "tick"
+    ]
+  ]
+}

@@ -1,0 +1,13 @@
+{
+	"schemaVersion": 1,
+	"id": "pikcraft-test",
+	"version": "1.0.0",
+	"name": "PikCraft tests",
+	"environment": "*",
+	"entrypoints": {
+		"fabric-client-gametest": ["io.github.malik05051.pikcraft.test.PikCraftClientTests"]
+	},
+	"depends": {
+		"pikcraft": "*"
+	}
+}
